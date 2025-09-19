@@ -12,22 +12,33 @@ typedef struct {
 } Licence;
 extern Licence datalic;
 
-#define MAX_DEVICES 200
+#define MAX_DEVICES 100
 typedef struct {
     uint8_t MACList[MAX_DEVICES][6]; // Lưu địa chỉ MAC (6 bytes)
     int DeviceID[MAX_DEVICES];
     int LocalID[MAX_DEVICES];
-    unsigned long timeLIC[MAX_DEVICES];
+    uint32_t timeLIC[MAX_DEVICES];
     int deviceCount;
 } device_info;
 extern device_info Device;
+
+/*
+
+// Thêm mới hoặc cập nhật thông tin thiết bị trong danh sách
+void addNodeToList(int id_src, int lid, uint32_t nodeId, uint32_t timestamp);
+void printDeviceList();
+// void handleScanResponse(uint32_t nodeId, int device_id, int local_id, uint32_t time_);
+// Xử lý phản hồi scan, thêm hoặc cập nhật thiết bị
+void handleScanResponse(uint32_t nodeId, int device_id, int local_id);
+*/
 
 extern int Device_ID;
 extern bool enable_print_ui;
 extern uint8_t button;
 extern lv_timer_t * timer;
-extern char messger[100];
+extern char messger[128];
 extern bool enable_print_ui_set;
+extern int next_page;
 // Khai báo các hàm
 void update_RTC(char* Hour, char* Minute, char* Second);
 void update_config(char* localID, char* deviceID, char* nod);

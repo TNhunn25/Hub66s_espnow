@@ -22,20 +22,51 @@ void Scan_Licene(lv_event_t * e)
 		ui_spinner1=NULL;
 	}
 	
-	lv_obj_clean(ui_Groupdevice);
+	if (ui_Groupdevice)
+	{
+		lv_obj_clean(ui_Groupdevice);
+	}
 	get_id_lid_ui();
-	ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
-	button=5;
-	next_page=0;
+	if (ui_Groupdevice)
+	{
+		ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
+	}
+
+	button = 5;
+	next_page = 0;
 }
 
 void Rescan_Licene(lv_event_t * e)
 {
 	// Your code here
-	lv_obj_clean(ui_Groupdevice);
+	if (timer != NULL)
+	{
+		lv_timer_del(timer);
+		timer = NULL;
+	}
+	if (ui_spinner1 != NULL)
+	{
+		lv_obj_del(ui_spinner1);
+		ui_spinner1 = NULL;
+	}
+
+	// lv_obj_clean(ui_Groupdevice);
+
+	if (ui_Groupdevice)
+	{
+		lv_obj_clean(ui_Groupdevice);
+	}
+
 	get_id_lid_ui();
-	ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
-	button=4;
+	// ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
+
+	if (ui_Groupdevice)
+	{
+		ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
+	}
+
+	next_page = 0;
+	button = 4;
 }
 
 void Newscan_Licene(lv_event_t * e)
