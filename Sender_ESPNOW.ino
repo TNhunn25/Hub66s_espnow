@@ -54,7 +54,6 @@ bool expired_flag = false; // Biến logic kiểm soát trạng thái
 // int expired = 1;           // 0 = chưa hết hạn, 1 = hết hạn
 uint8_t expired = expired_flag ? 1 : 0; // 1 là hết hạn, 0 là còn hạn
 
-
 // bool reported_before = false; // Đánh dấu đã từng phản hồi
 
 // Nhận gói Scan
@@ -172,13 +171,14 @@ void loop()
     {
     case 1:
       Serial.println("Gửi lệnh LIC_SET_LICENSE");
-      set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, 1, 1, millis());
+      set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, 1, millis());
       break;
     case 4:
-      Serial.println("Gửi lệnh LIC_GET_LICENSE");
+      Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
       getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;
     case 5:
+      Serial.println("Gửi lệnh LIC_GET_LICENSE_RESCAN");
       memset(&Device, 0, sizeof(Device));
       getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;
@@ -187,51 +187,76 @@ void loop()
     }
     button = 0;
   }
-  delay(10);
+  // delay(10);
 
   if (enable_print_ui_set)
   {
-    
+    lvgl_port_lock(-1);
     lv_obj_t *OBJ_Notification = add_Notification(ui_SCRSetLIC, messger);
+    lvgl_port_unlock();
     enable_print_ui_set = false;
-    // }
   }
 
   if (enable_print_ui || (old_page != next_page))
   {
 
-    // if(millis()-timer_out>5000){
-    // if (ui_spinner1 != NULL) {
-    // lv_anim_del(ui_spinner1, NULL);
-    // lv_obj_del(ui_spinner1); // Xóa đối tượng spinner
-    // ui_spinner1 = NULL; // Đặt con trỏ về NULL để tránh tham chiếu sai
-    // }
+    lvgl_port_lock(-1);
+    if (timer != NULL)
+    {
+      lv_timer_del(timer);
+      timer = NULL;
+    }
+
+    if (ui_spinner1 != NULL)
+    {
+      lv_obj_del(ui_spinner1);
+      ui_spinner1 = NULL;
+    }
+
     lv_obj_clean(ui_Groupdevice);
     lv_obj_invalidate(ui_Groupdevice);
 
-    // lv_obj_invalidate(lv_scr_act());
     if ((next_page * maxLinesPerPage) >= Device.deviceCount)
     {
       next_page = 0; // Quay về trang đầu
     }
+
     old_page = next_page;
-    char buf[64];
-    snprintf(buf, sizeof(buf), "LIST DEVICE: %2d - Page %2d", Device.deviceCount + 1, next_page + 1);
-    Serial.printf("BUF= %s\n", buf);
-    lv_label_set_text(ui_Label7, buf);
     int startIdx = next_page * maxLinesPerPage;
     int endIdx = startIdx + maxLinesPerPage;
     if (endIdx > Device.deviceCount)
-    {
       endIdx = Device.deviceCount;
+    if (startIdx >= endIdx || startIdx < 0 || endIdx > MAX_DEVICES)
+    {
+      enable_print_ui = false;
+      lvgl_port_unlock();
+      return;
     }
     Serial.printf("%d %d %d \n ", startIdx, endIdx, next_page);
+
+    if (ui_Groupdevice)
+    {
+      /* Hide container while rebuilding to prevent visible tearing */
+      lv_obj_add_flag(ui_Groupdevice, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clean(ui_Groupdevice);
+      // lv_obj_invalidate(ui_Groupdevice);
+    }
+
+    if (ui_Label7)
+    {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "LIST DEVICE: %2d - Page %2d", Device.deviceCount, next_page + 1);
+      lv_label_set_text(ui_Label7, buf);
+      Serial.printf("BUF= %s\n", buf);
+    }
+
     for (int i = startIdx; i < endIdx; i++)
     {
-      char macStr[18];
-      char idStr[18];
-      char lidStr[18];
-      char timeStr[18];
+      if (i < 0 || i >= MAX_DEVICES)
+        continue;
+      if (Device_ID != 0 && Device.DeviceID[i] != Device_ID)
+        continue;
+      char macStr[18], idStr[18], lidStr[18], timeStr[18], nodStr[8];
 
       snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
                Device.MACList[i][0], Device.MACList[i][1], Device.MACList[i][2],
@@ -239,12 +264,26 @@ void loop()
 
       snprintf(idStr, sizeof(idStr), "%d", Device.DeviceID[i]);
       snprintf(lidStr, sizeof(lidStr), "%d", Device.LocalID[i]);
-      snprintf(timeStr, sizeof(timeStr), "%d", Device.timeLIC[i]);
+      snprintf(timeStr, sizeof(timeStr), "%lu", Device.timeLIC[i]); // chuyển %d = %lu
 
-      lv_obj_t *ui_DeviceINFO = ui_DeviceINFO1_create(ui_Groupdevice, idStr, lidStr, "****", macStr, timeStr);
+      int count = 0;
+      for (int j = 0; j < Device.deviceCount; j++)
+      {
+        if (Device.LocalID[j] == Device.LocalID[i])
+        {
+          count++;
+        }
+      }
+
+      lv_obj_t *ui_DeviceINFO = ui_DeviceINFO1_create(ui_Groupdevice, idStr, lidStr, nodStr, macStr, timeStr);
+    }
+    if (ui_Groupdevice)
+    {
+      /* Reveal the list once all items are created and update layout */
+      lv_obj_clear_flag(ui_Groupdevice, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_invalidate(ui_Groupdevice);
     }
     enable_print_ui = false;
-    // }
+    lvgl_port_unlock();
   }
 }
-

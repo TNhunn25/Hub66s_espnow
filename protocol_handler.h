@@ -37,11 +37,11 @@ String createMessage(int id_src, int id_des, String mac_src, String mac_des, uin
   message["auth"] = auth;
 
   String messageStr;
-  serializeJson(message, messageStr);
+  serializeJson(message, messageStr); // Chuyển thành chuỗi JSON
   return messageStr;
 }
 
-//Xử lý phản hồi từ ESP NOW
+// Xử lý phản hồi từ ESP NOW
 void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_addr)
 {
   int id_src = message["id_src"];
@@ -58,19 +58,17 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
   if (!receivedAuth.equalsIgnoreCase(calculatedAuth))
   {
-    Serial.println("Odd - failing MD5 on String");
+    Serial.println("❌ Lỗi xác thực: Mã MD5 không khớp!");
     return;
   }
   else
   {
     Serial.println("OK!");
   }
-
   serializeJson(message, Serial);
 
   switch (opcode)
   {
-
   case LIC_SET_LICENSE | 0x80:
   {
     JsonObject data = message["data"];
@@ -78,12 +76,13 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     int Status = data["status"];
     const char *error_msg = data["error_msg"].as<const char *>();
 
-    sprintf(messger, "Status: %d \nLocal ID: %d\n", Status, lid);
+    sprintf(messger, "Status: %d \nLocal ID: %d\n", Status, lid); // Đổi %s sang %d
     if (error_msg != NULL)
     {
-      strcat(messger, "Lỗi: ");
-      strcat(messger, error_msg);
-      /* code */
+      // strcat(messger, "Lỗi: ");
+      // strcat(messger, error_msg);
+      strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
+      strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
     }
 
     // enable_print_ui_set=true;
@@ -99,7 +98,6 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   case LIC_GET_LICENSE | 0x80:
   {
     Serial.println("Đã nhận phản hồi HUB_GET_LICENSE:");
-
     JsonObject data = message["data"];
     int lid = data["lid"];
     unsigned long time_temp = data["remain"];
@@ -120,7 +118,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
 //======================================
 
-void set_license(int id_des, int lid, String mac_des, time_t created, const int duration, int remain, int expired, unsigned long now)
+void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t duration, uint8_t expired, uint32_t now)
 {
   int opcode = LIC_SET_LICENSE;
   String mac = WiFi.macAddress();
@@ -130,7 +128,6 @@ void set_license(int id_des, int lid, String mac_des, time_t created, const int 
   dataDoc["lid"] = lid;
   dataDoc["created"] = created;
   dataDoc["duration"] = duration;
-  dataDoc["remain"] = remain;
   dataDoc["expired"] = expired;
 
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
@@ -171,6 +168,4 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   Serial.println(output);
 }
 
-
 #endif
-

@@ -73,7 +73,8 @@ typedef struct
 } PayloadStruct;
 
 // Ham mã hóa Auth MD5
-String md5Hash(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, String data, unsigned long timestamp)
+String md5Hash(int id_src, int id_des, const String &mac_src, const String &mac_des, uint8_t opcode, 
+    const String &data, unsigned long timestamp)
 {
     MD5Builder md5;
     md5.begin();

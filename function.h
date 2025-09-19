@@ -24,13 +24,13 @@ extern device_info Device;
 
 /*
 
+*/
 // Thêm mới hoặc cập nhật thông tin thiết bị trong danh sách
 void addNodeToList(int id_src, int lid, uint32_t nodeId, uint32_t timestamp);
 void printDeviceList();
 // void handleScanResponse(uint32_t nodeId, int device_id, int local_id, uint32_t time_);
 // Xử lý phản hồi scan, thêm hoặc cập nhật thiết bị
 void handleScanResponse(uint32_t nodeId, int device_id, int local_id);
-*/
 
 extern int Device_ID;
 extern bool enable_print_ui;
@@ -39,6 +39,7 @@ extern lv_timer_t * timer;
 extern char messger[128];
 extern bool enable_print_ui_set;
 extern int next_page;
+
 // Khai báo các hàm
 void update_RTC(char* Hour, char* Minute, char* Second);
 void update_config(char* localID, char* deviceID, char* nod);
