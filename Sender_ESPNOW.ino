@@ -34,7 +34,7 @@ uint8_t button = 0;
 int config_lid = 123;
 int config_id = 2025;
 bool config_received = false;
-// #define maxLinesPerPage 5
+uint32_t nod = 0; //số lượng thiết bị, cập nhật khi có node mới kết nối
 int next_page = 0;
 int old_page = 0;
 

@@ -32,7 +32,7 @@ void Scan_Licene(lv_event_t * e)
 		ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
 	}
 
-	button = 5;
+	button = 4;
 	next_page = 0;
 }
 
@@ -66,7 +66,7 @@ void Rescan_Licene(lv_event_t * e)
 	}
 
 	next_page = 0;
-	button = 4;
+	button = 5;
 }
 
 void Newscan_Licene(lv_event_t * e)

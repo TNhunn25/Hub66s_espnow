@@ -15,7 +15,7 @@
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_);
 
 // Tạo tin nhắn phản hồi
-String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, DynamicJsonDocument data, unsigned long timestamp = 0)
+String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, const DynamicJsonDocument &data, unsigned long timestamp = 0)
 {
   if (timestamp == 0)
   {
