@@ -107,6 +107,57 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     // Serial.println(data["license"].as<String>());
     break;
   }
+  case LIC_CONFIG_DEVICE | 0x80:
+  {
+    Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
+    JsonObject data = message["data"];
+    int new_id = data["id"];
+    int lid = data["lid"];
+    int Status = data["status"];
+    const char *error_msg = data["error_msg"].as<const char *>();
+
+    sprintf(messger, "Status: %d \nDevice ID: %d\nLocal ID: %d\n", Status, new_id, lid);
+    if (error_msg != NULL)
+    {
+      strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
+      strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
+    }
+
+    Serial.print("Device ID: ");
+    Serial.println(new_id);
+    Serial.print("Local ID: ");
+    Serial.println(lid);
+    Serial.print("Status: ");
+    Serial.println(Status);
+
+    break;
+  }
+
+  case LIC_INFO | 0x80:
+  {
+    JsonObject data = message["data"];
+    int lid = data["lid"];
+    const char *deviceName = data["deviceName"].as<const char *>();
+    const char *version = data["version"].as<const char *>();
+    uint32_t duration = data["duration"];
+    uint32_t expired = data["expired"];
+    uint32_t created = data["created"];
+
+    Serial.println("== Đã nhận phản hồi LIC_INFO ==");
+    Serial.print("LID: ");
+    Serial.println(lid);
+    Serial.print("Device Name: ");
+    Serial.println(deviceName);
+    Serial.print("Version: ");
+    Serial.println(version);
+    Serial.print("Duration: ");
+    Serial.println(duration);
+    Serial.print("Created: ");
+    Serial.println(created);
+    Serial.print("Expired: ");
+    Serial.println(expired);
+    break;
+  }
 
   default:
     // if (opcode != 0x83) {  // Bỏ qua opcode 0x83

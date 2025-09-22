@@ -173,12 +173,16 @@ void loop()
       Serial.println("Gửi lệnh LIC_SET_LICENSE");
       set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, 1, millis());
       break;
+    case 2:
+      Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
+      // config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
+      break;  
     case 4:
-      Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
+      Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
       getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;
     case 5:
-      Serial.println("Gửi lệnh LIC_GET_LICENSE_RESCAN");
+      Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
       memset(&Device, 0, sizeof(Device));
       getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;

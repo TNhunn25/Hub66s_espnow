@@ -7,21 +7,21 @@
 #include "function.h"
 extern int next_page;
 
-void Scan_Licene(lv_event_t * e)
+void Scan_Licene(lv_event_t *e)
 {
 	// Your code here
-	
-	if (timer!=NULL)
+
+	if (timer != NULL)
 	{
 		lv_timer_del(timer);
-		timer=NULL;
+		timer = NULL;
 	}
-	if (ui_spinner1!=NULL)
+	if (ui_spinner1 != NULL)
 	{
 		lv_obj_del(ui_spinner1);
-		ui_spinner1=NULL;
+		ui_spinner1 = NULL;
 	}
-	
+
 	if (ui_Groupdevice)
 	{
 		lv_obj_clean(ui_Groupdevice);
@@ -32,11 +32,11 @@ void Scan_Licene(lv_event_t * e)
 		ui_spinner1 = ui_Spinner_create(ui_Groupdevice);
 	}
 
-	button = 4;
+	button = 5;
 	next_page = 0;
 }
 
-void Rescan_Licene(lv_event_t * e)
+void Rescan_Licene(lv_event_t *e)
 {
 	// Your code here
 	if (timer != NULL)
@@ -66,10 +66,10 @@ void Rescan_Licene(lv_event_t * e)
 	}
 
 	next_page = 0;
-	button = 5;
+	button = 4;
 }
 
-void Newscan_Licene(lv_event_t * e)
+void Newscan_Licene(lv_event_t *e)
 {
 	// Your code here
 	// lv_obj_clean(ui_Groupdevice);
@@ -78,26 +78,45 @@ void Newscan_Licene(lv_event_t * e)
 	// button=5;
 
 	next_page++;
-
 }
 
-void Setlicene(lv_event_t * e)
+void Setlicene(lv_event_t *e)
 {
 	// Your code here
 
 	get_lic_ui();
-	if (ui_spinner!=NULL)
+	if (ui_spinner != NULL)
 	{
 		lv_obj_del(ui_spinner);
-		ui_spinner=NULL;
+		ui_spinner = NULL;
 	}
-	
+
 	ui_spinner = ui_Spinner_create(ui_SCRSetLIC);
-	
-	button=1;
+
+	button = 1;
 }
 
-void configdevice(lv_event_t * e)
+void configdevice(lv_event_t *e)
 {
-	// Your code here
+	// ==== Phần 1: cấu hình Device ID/Local ID ====
+	if (ui_TextArea8 != NULL)
+	{
+		Device_ID = atoi(lv_textarea_get_text(ui_TextArea8));
+	}
+	if (ui_TextArea9 != NULL)
+	{
+		datalic.lid = atoi(lv_textarea_get_text(ui_TextArea9));
+	}
+
+	// Hiển thị spinner trong khi chờ phản hồi
+	if (ui_spinner != NULL)
+	{
+		lv_obj_del(ui_spinner);
+		ui_spinner = NULL;
+	} 
+	ui_spinner = ui_Spinner_create(ui_SCRconfigdevice);
+
+	// Đánh dấu để vòng lặp chính gửi lệnh cấu hình thiết bị
+	button = 2;
 }
+
