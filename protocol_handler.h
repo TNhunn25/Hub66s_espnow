@@ -151,7 +151,7 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   int opcode = LIC_GET_LICENSE;
   String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(128);
+  DynamicJsonDocument dataDoc(256);
   dataDoc["lid"] = lid;
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 

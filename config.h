@@ -69,7 +69,7 @@ typedef struct
 
 typedef struct
 {
-    char payload[250];
+    char payload[512];
 } PayloadStruct;
 
 // Ham mã hóa Auth MD5
