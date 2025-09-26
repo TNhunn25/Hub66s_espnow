@@ -29,7 +29,7 @@ lv_timer_t *timer = NULL;
 #define LED_PIN 2       // Chân LED báo trạng thái
 
 #define MASTER__ID 1001 // ID của thiết bị chính (Hub66s)
-#define maxLinesPerPage 20
+#define maxLinesPerPage 5 // Số dòng tối đa hiển thị trên một trang
 
 // Các opcode cho các lệnh
 #define LIC_TIME_GET 0x01

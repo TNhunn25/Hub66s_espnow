@@ -191,7 +191,7 @@ void ui_SCRSetLIC_screen_init(void)
     lv_obj_set_x(ui_Label15, -285);
     lv_obj_set_y(ui_Label15, -134);
     lv_obj_set_align(ui_Label15, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label15, "SET LICENE");
+    lv_label_set_text(ui_Label15, "SET LICENSE");
     lv_obj_set_style_text_color(ui_Label15, lv_color_hex(0x808080), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Label15, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Label15, &ui_font_Big, LV_PART_MAIN | LV_STATE_DEFAULT);

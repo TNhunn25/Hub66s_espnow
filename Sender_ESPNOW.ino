@@ -175,8 +175,8 @@ void loop()
       break;
     case 2:
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
-      // config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
-      break;  
+      config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
+      break;
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
       getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
@@ -217,8 +217,8 @@ void loop()
       ui_spinner1 = NULL;
     }
 
-    lv_obj_clean(ui_Groupdevice);
-    lv_obj_invalidate(ui_Groupdevice);
+    // lv_obj_clean(ui_Groupdevice); comment 2 dòng này 23/09
+    // lv_obj_invalidate(ui_Groupdevice);
 
     if ((next_page * maxLinesPerPage) >= Device.deviceCount)
     {
@@ -226,6 +226,7 @@ void loop()
     }
 
     old_page = next_page;
+
     int startIdx = next_page * maxLinesPerPage;
     int endIdx = startIdx + maxLinesPerPage;
     if (endIdx > Device.deviceCount)
@@ -236,7 +237,7 @@ void loop()
       lvgl_port_unlock();
       return;
     }
-    Serial.printf("%d %d %d \n ", startIdx, endIdx, next_page);
+    // Serial.printf("%d %d %d \n ", startIdx, endIdx, next_page);
 
     if (ui_Groupdevice)
     {
@@ -278,6 +279,7 @@ void loop()
           count++;
         }
       }
+      snprintf(nodStr, sizeof(nodStr), "%d", count);
 
       lv_obj_t *ui_DeviceINFO = ui_DeviceINFO1_create(ui_Groupdevice, idStr, lidStr, nodStr, macStr, timeStr);
     }

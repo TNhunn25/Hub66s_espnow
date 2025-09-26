@@ -18,6 +18,8 @@ typedef struct {
     int DeviceID[MAX_DEVICES];
     int LocalID[MAX_DEVICES];
     uint32_t timeLIC[MAX_DEVICES];
+    int DeviceLimit[MAX_DEVICES];
+    uint32_t responseCount[MAX_DEVICES];
     int deviceCount;
 } device_info;
 extern device_info Device;
@@ -33,6 +35,7 @@ void printDeviceList();
 void handleScanResponse(uint32_t nodeId, int device_id, int local_id);
 
 extern int Device_ID;
+extern uint32_t nod;
 extern bool enable_print_ui;
 extern uint8_t button;
 extern lv_timer_t * timer;
