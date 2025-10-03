@@ -5,6 +5,8 @@
 #include <WiFi.h>
 #include <ESP32_NOW.h>
 #include <ArduinoJson.h>
+#include <strings.h>
+#include <stdlib.h>
 // #include <deque>
 
 #include "config.h"
@@ -51,7 +53,24 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   uint8_t opcode = message["opcode"];
   String dataStr;
   serializeJson(message["data"], dataStr);
-  unsigned long timestamp = message["time"];
+  // unsigned long timestamp = message["time"];
+
+  JsonVariant timeField = message["time"];
+  unsigned long timestamp = 0;
+  if (timeField.is<unsigned long>())
+  {
+    timestamp = timeField.as<unsigned long>();
+  }
+  else if (timeField.is<const char *>())
+  {
+    const char *timeText = timeField.as<const char *>();
+    // Chuỗi INDEF biểu thị thời gian vô hạn nên bỏ qua chuyển đổi sang số
+    if (timeText != NULL && strcasecmp(timeText, "INDEF") != 0)
+    {
+      timestamp = strtoul(timeText, nullptr, 10);
+    }
+  }
+
   String receivedAuth = message["auth"];
 
   String calculatedAuth = md5Hash(id_src, id_des, mac_src, mac_des, opcode, dataStr, timestamp);
@@ -162,7 +181,33 @@ void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t d
   dataDoc["duration"] = duration;
   dataDoc["expired"] = expired;
 
-  String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
+  // String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
+
+  // expired=0 và duration=0 nghĩa là license vô thời hạn
+  bool unlimited = (expired == 0 && duration == 0);
+  String output;
+  if (unlimited)
+  {
+    String dataStr;
+    serializeJson(dataDoc, dataStr);
+
+    DynamicJsonDocument messageDoc(512);
+    messageDoc["id_src"] = id_src;
+    messageDoc["id_des"] = id_des;
+    messageDoc["mac_src"] = mac;
+    messageDoc["mac_des"] = mac_des;
+    messageDoc["opcode"] = opcode;
+    messageDoc["data"] = dataDoc;
+    // Đặt trường time là INDEF để thiết bị nhận biết license vô thời hạn
+    messageDoc["time"] = "INDEF";
+    messageDoc["auth"] = md5Hash(id_src, id_des, mac, mac_des, opcode, dataStr, 0);
+    serializeJson(messageDoc, output);
+  }
+  else
+  {
+    output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
+  }
+
 
   if (output.length() > sizeof(message.payload))
   {

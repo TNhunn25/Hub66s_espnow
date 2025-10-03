@@ -171,7 +171,8 @@ void loop()
     {
     case 1:
       Serial.println("Gửi lệnh LIC_SET_LICENSE");
-      set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, 1, millis());
+      // set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, 1, millis());
+      set_license(Device_ID, datalic.lid, WiFi.macAddress(), millis(), datalic.duration, datalic.expired? 1:0, millis());
       break;
     case 2:
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");

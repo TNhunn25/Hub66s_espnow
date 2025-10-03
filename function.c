@@ -1,4 +1,5 @@
 #include "function.h"
+#include <strings.h>
 
 void update_RTC(char *Hour, char *Minute, char *Second)
 {
@@ -37,9 +38,37 @@ void get_lic_ui()
     }
     if (ui_TextArea6 != NULL && ui_TextArea7 != NULL)
     {
-        uint32_t temp = atol(lv_textarea_get_text(ui_TextArea6)) * 60 + (uint32_t)atol(lv_textarea_get_text(ui_TextArea7));
-        datalic.duration = temp;
-        datalic.expired = true;
+        // uint32_t temp = atol(lv_textarea_get_text(ui_TextArea6)) * 60 + (uint32_t)atol(lv_textarea_get_text(ui_TextArea7));
+        // datalic.duration = temp;
+        // datalic.expired = true;
+
+        const char *hour_text = lv_textarea_get_text(ui_TextArea6);
+        const char *minute_text = lv_textarea_get_text(ui_TextArea7);
+        // Cho phép nhập INDEF để biểu thị license vô thời hạn
+        if (hour_text != NULL && strcasecmp(hour_text, "INDEF") == 0)
+        {
+            datalic.duration = 0;
+            datalic.expired = false;
+        }
+        else
+        {
+            long hour = (hour_text != NULL) ? atol(hour_text) : 0;
+            // Giá trị giờ 9999 cũng được hiểu là license vô thời hạn
+            if (hour == 000)
+            {
+                datalic.duration = 0;
+                datalic.expired = false;
+                enable_print_ui_set = true; // Kích hoạt hiển thị thông báo trên màn hình
+            }
+            else
+            {
+                long minute = (minute_text != NULL) ? atol(minute_text) : 0;
+                uint32_t temp = hour * 60 + (uint32_t)minute;
+                datalic.duration = temp;
+                datalic.expired = true;
+            }
+        }
+
     }
 }
 
