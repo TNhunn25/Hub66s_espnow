@@ -5,6 +5,9 @@
 
 #include "ui.h"
 #include "function.h"
+
+#include <stdlib.h>
+#include <string.h>
 extern int next_page;
 
 void Scan_Licene(lv_event_t *e)
@@ -107,16 +110,19 @@ void configdevice(lv_event_t *e)
 	{
 		datalic.lid = atoi(lv_textarea_get_text(ui_TextArea9));
 	}
+	if (ui_TextArea10 != NULL)
+	{
+		nod = (uint32_t)atol(lv_textarea_get_text(ui_TextArea10));
+	}
 
 	// Hiển thị spinner trong khi chờ phản hồi
 	if (ui_spinner != NULL)
 	{
 		lv_obj_del(ui_spinner);
 		ui_spinner = NULL;
-	} 
+	}
 	ui_spinner = ui_Spinner_create(ui_SCRconfigdevice);
 
 	// Đánh dấu để vòng lặp chính gửi lệnh cấu hình thiết bị
 	button = 2;
 }
-

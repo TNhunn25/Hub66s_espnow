@@ -14,6 +14,15 @@
 
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_);
 
+// Chuyển địa chỉ MAC dạng mảng 6 byte sang chuỗi chuẩn AA:BB:CC:DD:EE:FF
+inline String macToString(const uint8_t *mac_addr)
+{
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  return String(macStr);
+}
+
 // Tạo tin nhắn phản hồi
 String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, const DynamicJsonDocument &data, unsigned long timestamp = 0)
 {
@@ -107,55 +116,36 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     // Serial.println(data["license"].as<String>());
     break;
   }
+
   case LIC_CONFIG_DEVICE | 0x80:
   {
     Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
     JsonObject data = message["data"];
     int new_id = data["id"];
-    int lid = data["lid"];
-    int Status = data["status"];
+    int new_lid = data["lid"];
+    int nod = data["nod"];
+    int status = data["status"];
     const char *error_msg = data["error_msg"].as<const char *>();
 
-    sprintf(messger, "Status: %d \nDevice ID: %d\nLocal ID: %d\n", Status, new_id, lid);
-    if (error_msg != NULL)
-    {
-      strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
-      strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
-    }
+    sprintf(messger, "Status: %d \nDevice ID: %d\nLocal ID: %d\n", status, new_id, new_lid);
+        if (error_msg != NULL)
+        {
+            strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
+            strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
+        }
 
     Serial.print("Device ID: ");
-    Serial.println(new_id);
-    Serial.print("Local ID: ");
-    Serial.println(lid);
-    Serial.print("Status: ");
-    Serial.println(Status);
-
-    break;
-  }
-
-  case LIC_INFO | 0x80:
-  {
-    JsonObject data = message["data"];
-    int lid = data["lid"];
-    const char *deviceName = data["deviceName"].as<const char *>();
-    const char *version = data["version"].as<const char *>();
-    uint32_t duration = data["duration"];
-    uint32_t expired = data["expired"];
-    uint32_t created = data["created"];
-
-    Serial.println("== Đã nhận phản hồi LIC_INFO ==");
     Serial.print("LID: ");
-    Serial.println(lid);
-    Serial.print("Device Name: ");
-    Serial.println(deviceName);
-    Serial.print("Version: ");
-    Serial.println(version);
-    Serial.print("Duration: ");
-    Serial.println(duration);
-    Serial.print("Created: ");
-    Serial.println(created);
-    Serial.print("Expired: ");
-    Serial.println(expired);
+    Serial.println(new_lid);
+    Serial.print("NOD: ");
+    Serial.println(nod);
+    Serial.print("Status: ");
+    Serial.println(status);
+    if (error_msg != NULL)
+    {
+      Serial.print("Lỗi: ");
+      Serial.println(error_msg);
+    }
     break;
   }
 
@@ -197,13 +187,47 @@ void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t d
 }
 
 // Gửi HUB_GET_LICENSE
-void getlicense(int id_des, String mac_des, int lid, unsigned long now)
+// Gửi HUB_GET_LICENSE trực tiếp tới một thiết bị theo địa chỉ MAC cụ thể
+void getlicenseForMac(int id_des, const uint8_t *mac_addr, int lid, unsigned long now)
 {
+  if (mac_addr == nullptr)
+  {
+    // Không có địa chỉ MAC hợp lệ nên bỏ qua yêu cầu gửi trực tiếp
+    return;
+  }
+
   int opcode = LIC_GET_LICENSE;
-  String mac = WiFi.macAddress();
+  String mac_src = WiFi.macAddress();
+  String mac_des = macToString(mac_addr);
   int id_src = config_id;
   DynamicJsonDocument dataDoc(256);
   dataDoc["lid"] = lid;
+  String output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, now);
+
+  if (output.length() > sizeof(message.payload))
+  {
+    Serial.println("❌ Payload quá lớn!");
+    return;
+  }
+
+  output.toCharArray(message.payload, sizeof(message.payload));
+  esp_now_send((uint8_t *)mac_addr, (uint8_t *)&message, sizeof(message));
+
+  // Ghi log để tiện theo dõi thiết bị nào đang được gửi lại
+  Serial.print("📤 Gửi HUB_GET_LICENSE tới ");
+  Serial.println(mac_des);
+  Serial.println(output);
+}
+void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned long now)
+{
+  int opcode = LIC_CONFIG_DEVICE;
+  String mac = WiFi.macAddress();
+  int id_src = config_id;
+  DynamicJsonDocument dataDoc(128);
+  dataDoc["id"] = id_des;
+  dataDoc["lid"] = lid;
+  dataDoc["nod"] = nod;
+
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
@@ -215,8 +239,7 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   output.toCharArray(message.payload, sizeof(message.payload));
   esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
 
-  Serial.println("📤 Gửi HUB_GET_LICENSE:");
+  Serial.println("📤 Gửi LIC_CONFIG_DEVICE:");
   Serial.println(output);
 }
-
 #endif
