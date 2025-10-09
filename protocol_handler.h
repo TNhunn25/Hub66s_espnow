@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <ESP32_NOW.h>
 #include <ArduinoJson.h>
+#include <stdio.h>
 // #include <deque>
 
 #include "config.h"
@@ -12,16 +13,7 @@
 #include "serial.h"
 #include "function.h"
 
-void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_);
-
-// Chuyển địa chỉ MAC dạng mảng 6 byte sang chuỗi chuẩn AA:BB:CC:DD:EE:FF
-inline String macToString(const uint8_t *mac_addr)
-{
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  return String(macStr);
-}
+void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId);
 
 // Tạo tin nhắn phản hồi
 String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, const DynamicJsonDocument &data, unsigned long timestamp = 0)
@@ -106,12 +98,18 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
   case LIC_GET_LICENSE | 0x80:
   {
-    Serial.println("Đã nhận phản hồi HUB_GET_LICENSE:");
+    // Serial.println("Đã nhận phản hồi HUB_GET_LICENSE:");
     JsonObject data = message["data"];
     int lid = data["lid"];
     unsigned long time_temp = data["remain"];
 
-    addMacToList(id_src, lid, mac_addr, time_temp);
+    uint8_t groupId = 0;
+    if (data.containsKey("group_id"))
+    {
+      groupId = data["group_id"].as<uint8_t>();
+    }
+
+    addMacToList(id_src, lid, mac_addr, time_temp, groupId);
     // printDeviceList();
     // Serial.println(data["license"].as<String>());
     break;
@@ -119,7 +117,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
   case LIC_CONFIG_DEVICE | 0x80:
   {
-    Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
+    // Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
     JsonObject data = message["data"];
     int new_id = data["id"];
     int new_lid = data["lid"];
@@ -159,6 +157,14 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
 //======================================
 
+static String formatMacAddress(const uint8_t mac[6])
+{
+  char macBuffer[18];
+  snprintf(macBuffer, sizeof(macBuffer), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(macBuffer);
+}
+
 void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t duration, uint8_t expired, uint32_t now)
 {
   int opcode = LIC_SET_LICENSE;
@@ -187,22 +193,14 @@ void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t d
 }
 
 // Gửi HUB_GET_LICENSE
-// Gửi HUB_GET_LICENSE trực tiếp tới một thiết bị theo địa chỉ MAC cụ thể
-void getlicenseForMac(int id_des, const uint8_t *mac_addr, int lid, unsigned long now)
+void getlicense(int id_des, String mac_des, int lid, unsigned long now)
 {
-  if (mac_addr == nullptr)
-  {
-    // Không có địa chỉ MAC hợp lệ nên bỏ qua yêu cầu gửi trực tiếp
-    return;
-  }
-
   int opcode = LIC_GET_LICENSE;
-  String mac_src = WiFi.macAddress();
-  String mac_des = macToString(mac_addr);
+  String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(256);
+  DynamicJsonDocument dataDoc(128);
   dataDoc["lid"] = lid;
-  String output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, now);
+  String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
   {
@@ -211,13 +209,18 @@ void getlicenseForMac(int id_des, const uint8_t *mac_addr, int lid, unsigned lon
   }
 
   output.toCharArray(message.payload, sizeof(message.payload));
-  esp_now_send((uint8_t *)mac_addr, (uint8_t *)&message, sizeof(message));
+  esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
 
-  // Ghi log để tiện theo dõi thiết bị nào đang được gửi lại
-  Serial.print("📤 Gửi HUB_GET_LICENSE tới ");
-  Serial.println(mac_des);
+  Serial.println("📤 Gửi HUB_GET_LICENSE:");
   Serial.println(output);
 }
+
+// void getlicenseForMac(int id_des, const uint8_t mac_des[6], int lid, unsigned long now)
+// {
+//   String macString = formatMacAddress(mac_des);
+//   getlicense(id_des, macString, lid, now);
+// }
+
 void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned long now)
 {
   int opcode = LIC_CONFIG_DEVICE;

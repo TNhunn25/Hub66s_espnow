@@ -127,7 +127,7 @@ void serial_pc()
           Serial.println(input);
 
           // Parse JSON
-          StaticJsonDocument<512> doc;
+          StaticJsonDocument<256> doc;
           DeserializationError error = deserializeJson(doc, input);
 
           if (error)
