@@ -334,22 +334,21 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   bool includeAssignments = true;
   String output;
 
-  while (true)
-  {
-    size_t capacity = includeAssignments ? 768 : 512;
-    DynamicJsonDocument dataDoc(capacity);
-    dataDoc["lid"] = lid;
-    appendGroupConfiguration(dataDoc, 0, includeAssignments);
+  // while (true)
+  // {
+  //   DynamicJsonDocument dataDoc(512);
+  //   dataDoc["lid"] = lid;
+  //   appendGroupConfiguration(dataDoc, 0, includeAssignments);
 
-    output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, nowMillis);
-    if (output.length() <= sizeof(message.payload) || !includeAssignments)
-    {
-      break;
-    }
+  //   output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, nowMillis);
+  //   if (output.length() <= sizeof(message.payload) || !includeAssignments)
+  //   {
+  //     break;
+  //   }
 
-    includeAssignments = false;
-    Serial.println("⚠️ Payload gần vượt giới hạn, gửi lại broadcast không kèm danh sách nhóm chi tiết.");
-  }
+  //   includeAssignments = false;
+  //   Serial.println("⚠️ Payload gần vượt giới hạn, gửi lại broadcast không kèm danh sách nhóm chi tiết.");
+  // }
 
   if (output.length() > sizeof(message.payload))
   {
