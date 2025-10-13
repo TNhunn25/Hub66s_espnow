@@ -15,6 +15,8 @@
 
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId);
 
+static String formatMacAddress(const uint8_t mac[6]);
+
 // Tạo tin nhắn phản hồi
 String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, const DynamicJsonDocument &data, unsigned long timestamp = 0)
 {
@@ -47,8 +49,29 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 {
   int id_src = message["id_src"];
   int id_des = message["id_des"];
-  String mac_src = message["mac_src"];
-  String mac_des = message["mac_des"];
+  // String mac_src = message["mac_src"];
+  // String mac_des = message["mac_des"];
+
+  String mac_src;
+  if (message.containsKey("mac_src") && !message["mac_src"].isNull())
+  {
+    mac_src = message["mac_src"].as<String>();
+  }
+  else
+  {
+    mac_src = formatMacAddress(mac_addr);
+  }
+
+  String mac_des;
+  if (message.containsKey("mac_des") && !message["mac_des"].isNull())
+  {
+    mac_des = message["mac_des"].as<String>();
+  }
+  else
+  {
+    mac_des = WiFi.macAddress();
+  }
+
   uint8_t opcode = message["opcode"];
   String dataStr;
   serializeJson(message["data"], dataStr);
@@ -64,7 +87,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   }
   else
   {
-    Serial.println("OK!");
+    Serial.println("OK! Xác thực MD5 thành công");
   }
   serializeJson(message, Serial);
 
@@ -126,11 +149,11 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     const char *error_msg = data["error_msg"].as<const char *>();
 
     sprintf(messger, "Status: %d \nDevice ID: %d\nLocal ID: %d\n", status, new_id, new_lid);
-        if (error_msg != NULL)
-        {
-            strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
-            strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
-        }
+    if (error_msg != NULL)
+    {
+      strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
+      strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
+    }
 
     Serial.print("Device ID: ");
     Serial.print("LID: ");

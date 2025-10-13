@@ -46,9 +46,9 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
              mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
     Serial.print("Thiết bị đã tồn tại: ");
     Serial.print(macStr);
-    Serial.print(" - Nhóm: ");
+    Serial.print(" -Nhóm:");
     Serial.print(Device.groupId[existingIndex]);
-    Serial.print(" - số lần phản hồi: ");
+    Serial.print(" -số lần phản hồi:");
     Serial.println(Device.responseCount[existingIndex]);
     if (groupId == 0)
     {
@@ -80,15 +80,15 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.print("Thiết bị mới: ");
+  Serial.print("Thiết bị mới:");
   Serial.println(macStr);
-  Serial.print("  Nhóm: ");
+  Serial.print("Nhóm: ");
   Serial.println(Device.groupId[index]);
-  Serial.print("  Số lần phản hồi: ");
+  Serial.print("Số lần phản hồi: ");
   Serial.println(Device.responseCount[index]);
   if (groupId == 0)
   {
-    Serial.println("  ⚠️ Node không gửi group_id, áp dụng nhóm theo cấu hình hiện tại.");
+    Serial.println("⚠️ Node không gửi group_id, áp dụng nhóm theo cấu hình hiện tại.");
   }
 }
 
@@ -107,7 +107,7 @@ void printDeviceList()
     Serial.println(macStr);
     Serial.print("  Số lần phản hồi: ");
     Serial.println(Device.responseCount[i]);
-    Serial.print("  Nhóm: ");
+    Serial.print("Nhóm:");
     Serial.println(Device.groupId[i]);
   }
   Serial.println("------------------");

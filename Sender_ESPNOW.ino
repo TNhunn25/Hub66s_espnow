@@ -336,8 +336,8 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
 
   // while (true)
   // {
-  //   DynamicJsonDocument dataDoc(512);
-  //   dataDoc["lid"] = lid;
+    DynamicJsonDocument dataDoc(128);
+    dataDoc["lid"] = lid;
   //   appendGroupConfiguration(dataDoc, 0, includeAssignments);
 
   //   output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, nowMillis);
@@ -355,7 +355,7 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
     Serial.println("❌ Payload quá lớn!");
     return;
   }
-
+  memset(message.payload, 0, sizeof(message.payload));
   output.toCharArray(message.payload, sizeof(message.payload));
   esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
 
@@ -470,12 +470,12 @@ void loop()
       break;
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
-      // getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       // Reset trạng thái để vòng lặp biết rằng đây là lượt quét mới
       awaitingBroadcastResponses = false;
       currentRetryGroupId = 0;
       groupWindowStartMillis = 0;
-      sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;
     case 5:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
@@ -484,9 +484,9 @@ void loop()
       currentRetryGroupId = 0;
       groupWindowStartMillis = 0;
       memset(&Device, 0, sizeof(Device));
-      sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       // memset(&Device, 0, sizeof(Device));
-      // getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
       break;
     default:
       break;
