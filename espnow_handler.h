@@ -26,6 +26,7 @@ int findMacIndex(const uint8_t *mac_addr)
   return -1;
 }
 
+//Thêm mới hoặc cập nhật node dựa trên phản hồi nhận được từ 
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId)
 {
   // Kiểm tra xem node đã có trong danh sách hay chưa
@@ -43,6 +44,8 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
     Device.lastResponseMillis[existingIndex] = millis();
     Device.pendingResponse[existingIndex] = false;
     Device.groupId[existingIndex] = resolveGroupIdForIndex(existingIndex, groupId);
+    Device.hasRespondedAtLeastOnce[existingIndex] = true;
+    Device.lastScanSessionId[existingIndex] = currentScanSessionId;
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
              mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
@@ -77,6 +80,8 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   Device.lastRequestMillis[index] = 0;          // Chưa có lần yêu cầu đơn lẻ nào
   Device.pendingResponse[index] = false;        // Đã phản hồi cho lượt broadcast hiện tại
   Device.groupId[index] = resolveGroupIdForIndex(index, groupId);
+  Device.hasRespondedAtLeastOnce[index] = true;
+  Device.lastScanSessionId[index] = currentScanSessionId;
 
   Device.deviceCount++;
   char macStr[18];
@@ -121,8 +126,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? " Success" : " Fail");
 }
-
-
+// Bộ xử lý chung cho toàn bộ gói tin ESP-NOW trả về từ node
 void onReceive(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len)
 {
   const uint8_t *mac_addr = recv_info->src_addr;

@@ -34,6 +34,7 @@ uint8_t button = 0;
 group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS};
 static uint8_t currentRetryGroupId = 0;
 static unsigned long groupWindowStartMillis = 0;
+uint32_t currentScanSessionId = 0; // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
 
 // Biến lưu cấu hình
 int config_lid = 123;
@@ -141,31 +142,84 @@ static bool hasPendingResponses()
 }
 
 // Đánh dấu toàn bộ thiết bị đang chờ phản hồi sau khi đã broadcast yêu cầu.
-static void markDevicesPendingForBroadcast(unsigned long nowMillis)
+// includeKnownDevices = false nghĩa là chỉ đánh dấu các thiết bị chưa từng phản hồi.
+static bool markDevicesPendingForBroadcast(unsigned long nowMillis, bool includeKnownDevices)
 {
   refreshGroupConfiguration();
+
+  unsigned int pendingCount = 0;
+  unsigned int skippedCount = 0;
+
   for (int i = 0; i < Device.deviceCount; i++)
   {
+    bool shouldAwait = includeKnownDevices;
+
+    if (!includeKnownDevices)
+    {
+      shouldAwait = !Device.hasRespondedAtLeastOnce[i];
+      if (!shouldAwait)
+      {
+        Device.pendingResponse[i] = false;
+        Device.lastRequestMillis[i] = 0;
+        Device.lastScanSessionId[i] = currentScanSessionId;
+        skippedCount++;
+        continue;
+      }
+    }
+
     Device.pendingResponse[i] = true;
     Device.lastRequestMillis[i] = nowMillis;
     Device.lastResponseMillis[i] = 0;
     ensureDeviceGroup(i);
+    pendingCount++;
   }
 
-  awaitingBroadcastResponses = true;
-  currentRetryGroupId = groupConfig.groupCount > 0 ? 1 : 0;
-  groupWindowStartMillis = nowMillis;
-  if (Device.deviceCount > 0)
+  awaitingBroadcastResponses = pendingCount > 0;
+  if (awaitingBroadcastResponses)
   {
-    Serial.printf("⏳ Đang chờ phản hồi từ %d node đã biết...\n", Device.deviceCount);
+    currentRetryGroupId = groupConfig.groupCount > 0 ? 1 : 0;
+    groupWindowStartMillis = nowMillis;
+    Serial.printf("⏳ Đang chờ phản hồi từ %u node đã biết...\n", pendingCount);
     Serial.printf("   • Tổng nhóm: %u, kích thước nhóm: %u, thời gian chờ mỗi nhóm: %lums\n",
                   groupConfig.groupCount,
                   groupConfig.groupSize,
                   static_cast<unsigned long>(groupConfig.responseWindowMs));
   }
+  else
+  {
+    currentRetryGroupId = 0;
+    groupWindowStartMillis = 0;
+    if (!includeKnownDevices && skippedCount > 0)
+    {
+      Serial.printf("ℹ️ Bỏ qua yêu cầu phản hồi lại cho %u node đã được ghi nhận trước đó.\n", skippedCount);
+    }
+  }
+
+  return awaitingBroadcastResponses;
 }
 
-// Đăng ký peer ESP-NOW nếu chưa tồn tại trước khi gửi gói tin trực tiếp.
+// Bắt đầu một phiên quét mới. Có thể ép các thiết bị đã biết phản hồi lại khi includeKnownDevices = true.
+static void startLicenseScan(bool includeKnownDevices)
+{
+  unsigned long nowMillis = millis();
+
+  currentScanSessionId++;
+
+  awaitingBroadcastResponses = false;
+  currentRetryGroupId = 0;
+  groupWindowStartMillis = 0;
+
+  bool awaitingResponses = markDevicesPendingForBroadcast(nowMillis, includeKnownDevices);
+
+  if (!awaitingResponses && includeKnownDevices && Device.deviceCount == 0)
+  {
+    Serial.println("ℹ️ Chưa có thiết bị nào được ghi nhận để thực hiện rescan.");
+  }
+
+  getlicense(Device_ID, WiFi.macAddress(), datalic.lid, nowMillis);
+}
+
+// Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin trực tiếp tới node.
 static void ensurePeerRegistered(const uint8_t *mac_addr)
 {
   esp_now_peer_info_t peerInfo = {};
@@ -226,8 +280,7 @@ static void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsign
   Serial.println(output);
 }
 
-// Xử lý các node quá thời gian chờ bằng cách gửi lại trực tiếp
-// Gửi lại yêu cầu cho các node quá hạn phản hồi theo từng nhóm.
+// Duyệt danh sách các node còn pending và gửi lại yêu cầu trực tiếp theo từng nhóm.
 static void handlePendingResponses()
 {
   if (!awaitingBroadcastResponses)
@@ -363,7 +416,7 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   Serial.println(output);
 
   // Sau khi broadcast, đánh dấu toàn bộ node là đang chờ phản hồi
-  markDevicesPendingForBroadcast(nowMillis);
+  markDevicesPendingForBroadcast(nowMillis, true);
 }
 
 void setup()
@@ -468,25 +521,32 @@ void loop()
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
       config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
       break;
+    // case 4:
+    //   Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
+    //   // Reset trạng thái để vòng lặp biết rằng đây là lượt quét mới
+    //   awaitingBroadcastResponses = false;
+    //   currentRetryGroupId = 0;
+    //   groupWindowStartMillis = 0;
+    //   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+    //   // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+    //   break;
+    // case 5:
+    //   Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
+    //   // Reset cờ chờ phản hồi vì sẽ tiến hành scan lại từ đầu
+    //   awaitingBroadcastResponses = false;
+    //   currentRetryGroupId = 0;
+    //   groupWindowStartMillis = 0;
+    //   memset(&Device, 0, sizeof(Device));
+    //   // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+    //   // memset(&Device, 0, sizeof(Device));
+    //   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
-      // Reset trạng thái để vòng lặp biết rằng đây là lượt quét mới
-      awaitingBroadcastResponses = false;
-      currentRetryGroupId = 0;
-      groupWindowStartMillis = 0;
-      getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
-      // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      startLicenseScan(true);
       break;
     case 5:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
-      // Reset cờ chờ phản hồi vì sẽ tiến hành scan lại từ đầu
-      awaitingBroadcastResponses = false;
-      currentRetryGroupId = 0;
-      groupWindowStartMillis = 0;
-      memset(&Device, 0, sizeof(Device));
-      // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
-      // memset(&Device, 0, sizeof(Device));
-      getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
+      startLicenseScan(false);
       break;
     default:
       break;
