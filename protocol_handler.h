@@ -87,7 +87,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   }
   else
   {
-    Serial.println("OK! Xác thực MD5 thành công");
+    Serial.println("MD5 OK!");
   }
   serializeJson(message, Serial);
 

@@ -31,6 +31,8 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   // Kiểm tra xem node đã có trong danh sách hay chưa
   int existingIndex = findMacIndex(mac_addr);
 
+  refreshGroupConfiguration();
+
   if (existingIndex != -1)
   {
     Device.DeviceID[existingIndex] = id;

@@ -110,6 +110,7 @@ extern uint8_t expired;
 extern uint32_t now;
 extern uint32_t lastSendTime;
 extern String device_id;
+extern uint32_t group_id; // group indentifier
 extern uint32_t nod; // number of device
 
 #endif // CONFIG_H
