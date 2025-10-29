@@ -5,8 +5,7 @@
 #include <WiFi.h>
 #include <ESP32_NOW.h>
 #include <ArduinoJson.h>
-#include <strings.h>
-#include <stdlib.h>
+#include <stdio.h>
 // #include <deque>
 
 #include "config.h"
@@ -14,7 +13,11 @@
 #include "serial.h"
 #include "function.h"
 
-void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_);
+#include "espnow_group.h"
+
+void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId);
+
+static String formatMacAddress(const uint8_t mac[6]);
 
 // Tạo tin nhắn phản hồi
 String createMessage(int id_src, int id_des, String mac_src, String mac_des, uint8_t opcode, const DynamicJsonDocument &data, unsigned long timestamp = 0)
@@ -48,29 +51,33 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 {
   int id_src = message["id_src"];
   int id_des = message["id_des"];
-  String mac_src = message["mac_src"];
-  String mac_des = message["mac_des"];
+  // String mac_src = message["mac_src"];
+  // String mac_des = message["mac_des"];
+
+  String mac_src;
+  if (message.containsKey("mac_src") && !message["mac_src"].isNull())
+  {
+    mac_src = message["mac_src"].as<String>();
+  }
+  else
+  {
+    mac_src = formatMacAddress(mac_addr);
+  }
+
+  String mac_des;
+  if (message.containsKey("mac_des") && !message["mac_des"].isNull())
+  {
+    mac_des = message["mac_des"].as<String>();
+  }
+  else
+  {
+    mac_des = WiFi.macAddress();
+  }
+
   uint8_t opcode = message["opcode"];
   String dataStr;
   serializeJson(message["data"], dataStr);
-  // unsigned long timestamp = message["time"];
-
-  JsonVariant timeField = message["time"];
-  unsigned long timestamp = 0;
-  if (timeField.is<unsigned long>())
-  {
-    timestamp = timeField.as<unsigned long>();
-  }
-  else if (timeField.is<const char *>())
-  {
-    const char *timeText = timeField.as<const char *>();
-    // Chuỗi INDEF biểu thị thời gian vô hạn nên bỏ qua chuyển đổi sang số
-    if (timeText != NULL && strcasecmp(timeText, "INDEF") != 0)
-    {
-      timestamp = strtoul(timeText, nullptr, 10);
-    }
-  }
-
+  unsigned long timestamp = message["time"];
   String receivedAuth = message["auth"];
 
   String calculatedAuth = md5Hash(id_src, id_des, mac_src, mac_des, opcode, dataStr, timestamp);
@@ -82,7 +89,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   }
   else
   {
-    Serial.println("OK!");
+    Serial.println("MD5 OK!");
   }
   serializeJson(message, Serial);
 
@@ -116,20 +123,24 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
   case LIC_GET_LICENSE | 0x80:
   {
-    Serial.println("Đã nhận phản hồi HUB_GET_LICENSE:");
+    // Serial.println("Đã nhận phản hồi HUB_GET_LICENSE:");
     JsonObject data = message["data"];
     int lid = data["lid"];
     unsigned long time_temp = data["remain"];
 
-    addMacToList(id_src, lid, mac_addr, time_temp);
-    // printDeviceList();
-    // Serial.println(data["license"].as<String>());
+    uint8_t groupId = 0;
+    if (data.containsKey("group_id"))
+    {
+      groupId = data["group_id"].as<uint8_t>();
+    }
+
+    addMacToList(id_src, lid, mac_addr, time_temp, groupId);
     break;
   }
 
   case LIC_CONFIG_DEVICE | 0x80:
   {
-    Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
+    // Serial.println("Đã nhận phản hồi LIC_CONFIG_DEVICE:");
     JsonObject data = message["data"];
     int new_id = data["id"];
     int new_lid = data["lid"];
@@ -138,11 +149,11 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     const char *error_msg = data["error_msg"].as<const char *>();
 
     sprintf(messger, "Status: %d \nDevice ID: %d\nLocal ID: %d\n", status, new_id, new_lid);
-        if (error_msg != NULL)
-        {
-            strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
-            strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
-        }
+    if (error_msg != NULL)
+    {
+      strncat(messger, "Lỗi: ", sizeof(messger) - strlen(messger) - 1);
+      strncat(messger, error_msg, sizeof(messger) - strlen(messger) - 1);
+    }
 
     Serial.print("Device ID: ");
     Serial.print("LID: ");
@@ -169,6 +180,14 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
 
 //======================================
 
+static String formatMacAddress(const uint8_t mac[6])
+{
+  char macBuffer[18];
+  snprintf(macBuffer, sizeof(macBuffer), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(macBuffer);
+}
+
 void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t duration, uint8_t expired, uint32_t now)
 {
   int opcode = LIC_SET_LICENSE;
@@ -181,33 +200,7 @@ void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t d
   dataDoc["duration"] = duration;
   dataDoc["expired"] = expired;
 
-  // String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
-
-  // expired=0 và duration=0 nghĩa là license vô thời hạn
-  bool unlimited = (expired == 0 && duration == 0);
-  String output;
-  if (unlimited)
-  {
-    String dataStr;
-    serializeJson(dataDoc, dataStr);
-
-    DynamicJsonDocument messageDoc(512);
-    messageDoc["id_src"] = id_src;
-    messageDoc["id_des"] = id_des;
-    messageDoc["mac_src"] = mac;
-    messageDoc["mac_des"] = mac_des;
-    messageDoc["opcode"] = opcode;
-    messageDoc["data"] = dataDoc;
-    // Đặt trường time là INDEF để thiết bị nhận biết license vô thời hạn
-    messageDoc["time"] = "INDEF";
-    messageDoc["auth"] = md5Hash(id_src, id_des, mac, mac_des, opcode, dataStr, 0);
-    serializeJson(messageDoc, output);
-  }
-  else
-  {
-    output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
-  }
-
+  String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
   {
@@ -228,8 +221,16 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   int opcode = LIC_GET_LICENSE;
   String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(128);
+  DynamicJsonDocument dataDoc(250);
   dataDoc["lid"] = lid;
+
+  refreshGroupConfiguration();
+  uint8_t targetGroupId = findLowestPendingGroupId();
+  if(targetGroupId !=0)
+  {
+    dataDoc["group_id"] = targetGroupId;
+  }
+  appendGroupConfiguration(dataDoc, targetGroupId, true);
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
