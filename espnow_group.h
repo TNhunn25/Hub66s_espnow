@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdio.h>
 
 #include "function.h"
@@ -23,7 +24,7 @@ typedef struct
 
 extern group_config_t groupConfig;
 extern size_t configuredAssignmentCount;
-extern uint8_t configuredAssignmentMacList[MAX_DEVICES][6];
+extern uint8_t configuredAssignmentMac[MAX_DEVICES][6];
 extern uint8_t configuredAssignmentGroupId[MAX_DEVICES];
 
 /// @brief Số nhóm mặc định mà Hub luôn cố gắng duy trì.
@@ -32,128 +33,72 @@ constexpr uint8_t DEFAULT_TARGET_GROUP_COUNT = 5;
 constexpr uint8_t MAX_DEVICES_PER_GROUP = 20;
 /// @brief Thời gian chờ phản hồi mặc định cho mỗi nhóm (ms).
 constexpr uint32_t DEFAULT_GROUP_RESPONSE_WINDOW_MS = 3000; // cũ 1500
+/// @brief Ngưỡng tối thiểu để tránh cấu hình thời gian chờ quá thấp (ms).
 constexpr uint32_t MIN_GROUP_RESPONSE_WINDOW_MS = 500;
 /// @brief Số bản ghi gán nhóm tối đa được gửi kèm trong một gói JSON.
 constexpr size_t MAX_GROUP_ASSIGNMENTS_IN_MESSAGE = 24;
-constexpr size_t MAC_ADDRESS_LENGTH = 6;
 
-inline bool macIsEmpty(const uint8_t mac[6])
+inline bool isZeroMac(const uint8_t mac[6])
 {
-  static const uint8_t ZERO_MAC[MAC_ADDRESS_LENGTH] = {0};
-  return memcmp(mac, ZERO_MAC, MAC_ADDRESS_LENGTH) == 0;
-}
-
-inline bool macEquals(const uint8_t lhs[6], const uint8_t rhs[6])
-{
-  return memcmp(lhs, rhs, MAC_ADDRESS_LENGTH) == 0;
-}
-
-inline void copyMac(uint8_t dest[6], const uint8_t src[6])
-{
-  memcpy(dest, src, MAC_ADDRESS_LENGTH);
+  if (mac == nullptr)
+  {
+    return true;
+  }
+  for (size_t i = 0; i < 6; i++)
+  {
+    if (mac[i] != 0)
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 inline bool parseMacString(const char *text, uint8_t outMac[6])
 {
-  if (text == nullptr)
+  if (text == nullptr || outMac == nullptr)
   {
     return false;
   }
 
-  int values[MAC_ADDRESS_LENGTH];
+  int values[6] = {0};
   if (sscanf(text, "%x:%x:%x:%x:%x:%x",
-             &values[0], &values[1], &values[2], &values[3], &values[4], &values[5]) != 6)
+             &values[0], &values[1], &values[2],
+             &values[3], &values[4], &values[5]) == 6)
   {
-    return false;
-  }
-
-  for (int i = 0; i < static_cast<int>(MAC_ADDRESS_LENGTH); i++)
-  {
-    if (values[i] < 0 || values[i] > 0xFF)
+    for (size_t i = 0; i < 6; i++)
     {
-      return false;
+      if (values[i] < 0 || values[i] > 0xFF)
+      {
+        return false;
+      }
+      outMac[i] = static_cast<uint8_t>(values[i]);
     }
-    outMac[i] = static_cast<uint8_t>(values[i]);
+    return true;
   }
-  return true;
-}
 
-inline bool resolveUniqueMacForDeviceId(int deviceId, uint8_t outMac[6])
-{
-  if (deviceId <= 0)
+  size_t len = strlen(text);
+  if (len == 12)
   {
-    return false;
+    for (size_t i = 0; i < 6; i++)
+    {
+      char buf[3] = {text[i * 2], text[i * 2 + 1], '\0'};
+      if (!isxdigit(buf[0]) || !isxdigit(buf[1]))
+      {
+        return false;
+      }
+      outMac[i] = static_cast<uint8_t>(strtoul(buf, nullptr, 16));
+    }
+    return true;
   }
 
-  int matchedIndex = -1;
-  for (int i = 0; i < Device.deviceCount; i++)
-  {
-    if (Device.DeviceID[i] != deviceId)
-    {
-      continue;
-    }
-
-    if (matchedIndex == -1)
-    {
-      matchedIndex = i;
-      copyMac(outMac, Device.MACList[i]);
-    }
-    else if (!macEquals(Device.MACList[i], Device.MACList[matchedIndex]))
-    {
-      Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì DeviceID %d trùng lặp và ánh xạ nhiều MAC khác nhau.\n", deviceId);
-      return false;
-    }
-  }
-
-  if (matchedIndex == -1)
-  {
-    Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì không tìm thấy DeviceID %d trong danh sách thiết bị hiện tại.\n", deviceId);
-    return false;
-  }
-
-  return true;
-}
-
-inline bool resolveUniqueMacForLocalId(int localId, uint8_t outMac[6])
-{
-  if (localId <= 0)
-  {
-    return false;
-  }
-
-  int matchedIndex = -1;
-  for (int i = 0; i < Device.deviceCount; i++)
-  {
-    if (Device.LocalID[i] != localId)
-    {
-      continue;
-    }
-
-    if (matchedIndex == -1)
-    {
-      matchedIndex = i;
-      copyMac(outMac, Device.MACList[i]);
-    }
-    else if (!macEquals(Device.MACList[i], Device.MACList[matchedIndex]))
-    {
-      Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì LocalID %d ánh xạ tới nhiều MAC khác nhau. Vui lòng cấu hình theo MAC.\n", localId);
-      return false;
-    }
-  }
-
-  if (matchedIndex == -1)
-  {
-    Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì không tìm thấy LocalID %d trong danh sách thiết bị hiện tại.\n", localId);
-    return false;
-  }
-
-  return true;
+  return false;
 }
 
 inline void clearConfiguredGroupAssignments()
 {
   configuredAssignmentCount = 0;
-  memset(configuredAssignmentMacList, 0, sizeof(configuredAssignmentMacList));
+  memset(configuredAssignmentMac, 0, sizeof(configuredAssignmentMac));
   memset(configuredAssignmentGroupId, 0, sizeof(configuredAssignmentGroupId));
 }
 
@@ -166,25 +111,25 @@ inline void removeConfiguredGroupAssignmentAt(size_t idx)
 
   for (size_t i = idx + 1; i < configuredAssignmentCount; i++)
   {
-    copyMac(configuredAssignmentMacList[i - 1], configuredAssignmentMacList[i]);
+    memcpy(configuredAssignmentMac[i - 1], configuredAssignmentMac[i], 6);
     configuredAssignmentGroupId[i - 1] = configuredAssignmentGroupId[i];
   }
 
-  memset(configuredAssignmentMacList[configuredAssignmentCount - 1], 0, MAC_ADDRESS_LENGTH);
+  memset(configuredAssignmentMac[configuredAssignmentCount - 1], 0, 6);
   configuredAssignmentGroupId[configuredAssignmentCount - 1] = 0;
   configuredAssignmentCount--;
 }
 
-inline void setConfiguredGroupAssignmentForMac(const uint8_t mac[6], uint8_t groupId)
+inline void setConfiguredGroupAssignment(const uint8_t mac[6], uint8_t groupId)
 {
-  if (mac == nullptr || macIsEmpty(mac))
+  if (isZeroMac(mac))
   {
     return;
   }
 
   for (size_t i = 0; i < configuredAssignmentCount; i++)
   {
-    if (macEquals(configuredAssignmentMacList[i], mac))
+    if (memcmp(configuredAssignmentMac[i], mac, 6) == 0)
     {
       if (groupId == 0)
       {
@@ -203,25 +148,51 @@ inline void setConfiguredGroupAssignmentForMac(const uint8_t mac[6], uint8_t gro
     return;
   }
 
-  copyMac(configuredAssignmentMacList[configuredAssignmentCount], mac);
+  memcpy(configuredAssignmentMac[configuredAssignmentCount], mac, 6);
   configuredAssignmentGroupId[configuredAssignmentCount] = groupId;
   configuredAssignmentCount++;
 }
 
 inline uint8_t getConfiguredGroupForMac(const uint8_t mac[6])
 {
-  if (mac == nullptr || macIsEmpty(mac))
+  if (isZeroMac(mac))
   {
     return 0;
   }
+
   for (size_t i = 0; i < configuredAssignmentCount; i++)
   {
-    if (macEquals(configuredAssignmentMacList[i], mac))
+    if (memcmp(configuredAssignmentMac[i], mac, 6) == 0)
     {
       return configuredAssignmentGroupId[i];
     }
   }
   return 0;
+}
+
+inline bool assignConfiguredGroupForLocalId(int localId, uint8_t groupId)
+{
+  if (localId <= 0)
+  {
+    return false;
+  }
+
+  bool assigned = false;
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (Device.LocalID[i] == localId)
+    {
+      setConfiguredGroupAssignment(Device.MACList[i], groupId);
+      assigned = true;
+    }
+  }
+
+  if (!assigned)
+  {
+    Serial.printf("⚠️ Không tìm thấy MAC cho Local ID %d khi cấu hình nhóm.\n", localId);
+  }
+
+  return assigned;
 }
 
 inline uint8_t getHighestConfiguredGroupId()
@@ -414,57 +385,54 @@ inline void parseGroupAssignmentVariant(const JsonVariantConst &entry, uint8_t g
   if (entry.is<JsonObjectConst>())
   {
     JsonObjectConst obj = entry.as<JsonObjectConst>();
-    if (obj.containsKey("value"))
-    {
-      parseGroupAssignmentVariant(obj["value"], groupId);
-      return;
-    }
+    bool handled = false;
 
-    uint8_t mac[6] = {0};
-    bool hasMac = false;
-
+    const char *macText = nullptr;
     if (obj.containsKey("mac"))
     {
-      const char *macStr = obj["mac"].as<const char *>();
-      hasMac = parseMacString(macStr, mac);
-      if (!hasMac)
-      {
-        Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì chuỗi MAC '%s' không hợp lệ.\n", macStr == nullptr ? "(null)" : macStr);
-      }
+      macText = obj["mac"].as<const char *>();
     }
     else if (obj.containsKey("mac_addr"))
     {
-      const char *macStr = obj["mac_addr"].as<const char *>();
-      hasMac = parseMacString(macStr, mac);
-      if (!hasMac)
+      macText = obj["mac_addr"].as<const char *>();
+    }
+    if (macText != nullptr)
+    {
+      uint8_t mac[6] = {0};
+      if (parseMacString(macText, mac))
       {
-        Serial.printf("⚠️ Bỏ qua cấu hình nhóm vì mac_addr '%s' không hợp lệ.\n", macStr == nullptr ? "(null)" : macStr);
+        setConfiguredGroupAssignment(mac, groupId);
+        handled = true;
+      }
+      else
+      {
+        Serial.printf("⚠️ Không thể phân tích địa chỉ MAC '%s' trong cấu hình nhóm.\n",
+                      macText);
       }
     }
-    else if (obj.containsKey("id"))
+
+    if (obj.containsKey("value"))
     {
-      int deviceId = obj["id"].as<int>();
-      hasMac = resolveUniqueMacForDeviceId(deviceId, mac);
-    }
-    else if (obj.containsKey("device_id"))
-    {
-      int deviceId = obj["device_id"].as<int>();
-      hasMac = resolveUniqueMacForDeviceId(deviceId, mac);
-    }
-    else if (obj.containsKey("lid"))
-    {
-      int localId = obj["lid"].as<int>();
-      hasMac = resolveUniqueMacForLocalId(localId, mac);
-    }
-    else if (obj.containsKey("local_id"))
-    {
-      int localId = obj["local_id"].as<int>();
-      hasMac = resolveUniqueMacForLocalId(localId, mac);
+      parseGroupAssignmentVariant(obj["value"], groupId);
+      handled = true;
     }
 
-    if (hasMac)
+    if (obj.containsKey("lid"))
     {
-      setConfiguredGroupAssignmentForMac(mac, groupId);
+      handled = assignConfiguredGroupForLocalId(obj["lid"].as<int>(), groupId) || handled;
+    }
+    if (obj.containsKey("local_id"))
+    {
+      handled = assignConfiguredGroupForLocalId(obj["local_id"].as<int>(), groupId) || handled;
+    }
+    if (obj.containsKey("id"))
+    {
+      handled = assignConfiguredGroupForLocalId(obj["id"].as<int>(), groupId) || handled;
+    }
+
+    if (!handled)
+    {
+      Serial.println("⚠️ Bỏ qua cấu hình nhóm không xác định (không có trường mac/lid).");
     }
     return;
   }
@@ -477,61 +445,40 @@ inline void parseGroupAssignmentVariant(const JsonVariantConst &entry, uint8_t g
       return;
     }
 
+    uint8_t mac[6] = {0};
+    if (parseMacString(text, mac))
+    {
+      setConfiguredGroupAssignment(mac, groupId);
+      return;
+    }
+
     const char *cursor = text;
     while (*cursor != '\0')
     {
-      while (*cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r' || *cursor == ',' || *cursor == ';')
+      char *endPtr = nullptr;
+      long value = strtol(cursor, &endPtr, 10);
+      if (endPtr == cursor)
       {
+        if (*cursor == '\0')
+        {
+          break;
+        }
         cursor++;
-      }
-      if (*cursor == '\0')
-      {
-        break;
-      }
-
-      const char *start = cursor;
-      while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t' && *cursor != '\n' && *cursor != '\r' && *cursor != ',' && *cursor != ';')
-      {
-        cursor++;
-      }
-
-      size_t len = static_cast<size_t>(cursor - start);
-      if (len == 0)
-      {
         continue;
       }
 
-      char token[32];
-      if (len >= sizeof(token))
+      if (value != 0)
       {
-        len = sizeof(token) - 1;
+        assignConfiguredGroupForLocalId(static_cast<int>(value), groupId);
       }
-      memcpy(token, start, len);
-      token[len] = '\0';
-
-      uint8_t mac[6] = {0};
-      if (parseMacString(token, mac))
-      {
-        setConfiguredGroupAssignmentForMac(mac, groupId);
-        continue;
-      }
-
-      long value = strtol(token, nullptr, 10);
-      if (value != 0 && resolveUniqueMacForDeviceId(static_cast<int>(value), mac))
-      {
-        setConfiguredGroupAssignmentForMac(mac, groupId);
-      }
+      cursor = endPtr;
     }
     return;
   }
 
   if (entry.is<int>() || entry.is<long>() || entry.is<unsigned int>() || entry.is<unsigned long>())
   {
-    uint8_t mac[6] = {0};
-    if (resolveUniqueMacForDeviceId(entry.as<int>(), mac))
-    {
-      setConfiguredGroupAssignmentForMac(mac, groupId);
-    }
+    assignConfiguredGroupForLocalId(entry.as<int>(), groupId);
   }
 }
 
@@ -616,18 +563,6 @@ inline uint8_t findLowestPendingGroupId()
  * Khi includeAssignments = false, hàm sẽ không thêm trường group_cfg để tránh
  * gửi kèm metadata nhóm trong payload.
  */
-inline bool hasLocalIdAssigned(const int *localIds, size_t count, int localId)
-{
-  for (size_t i = 0; i < count; i++)
-  {
-    if (localIds[i] == localId)
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
 inline void appendGroupConfiguration(DynamicJsonDocument &dataDoc, uint8_t targetGroupId, bool includeAssignments)
 {
   if (!includeAssignments)
@@ -647,18 +582,20 @@ inline void appendGroupConfiguration(DynamicJsonDocument &dataDoc, uint8_t targe
   {
     includedAssignments = MAX_GROUP_ASSIGNMENTS_IN_MESSAGE;
   }
-
   for (size_t i = 0; i < includedAssignments; i++)
   {
     JsonObject entry = assignments.createNestedObject();
-    entry["id"] = Device.DeviceID[i];
-    entry["lid"] = Device.LocalID[i];
-    entry["gid"] = ensureDeviceGroup(i);
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             Device.MACList[i][0], Device.MACList[i][1], Device.MACList[i][2],
-             Device.MACList[i][3], Device.MACList[i][4], Device.MACList[i][5]);
+             Device.MACList[i][0],
+             Device.MACList[i][1],
+             Device.MACList[i][2],
+             Device.MACList[i][3],
+             Device.MACList[i][4],
+             Device.MACList[i][5]);
     entry["mac"] = macStr;
+    entry["lid"] = Device.LocalID[i];
+    entry["gid"] = ensureDeviceGroup(i);
   }
 }
 

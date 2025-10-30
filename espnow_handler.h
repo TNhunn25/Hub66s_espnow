@@ -98,7 +98,7 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   {
     requestedGroup = getConfiguredGroupForMac(Device.MACList[index]);
   }
-  Device.groupId[index] = resolveGroupIdForIndex(index, requestedGroup);
+  Device.groupId[index] = resolveGroupIdForIndex(index,requestedGroup);
   Device.hasRespondedAtLeastOnce[index] = true;
   Device.lastScanSessionId[index] = currentScanSessionId;
   Device.deviceCount++;
@@ -113,7 +113,7 @@ void printDeviceList()
   {
     char prefix[24];
     snprintf(prefix, sizeof(prefix),"📋 Thiết bị %d", i + 1);
-    logDeviceStatus(prefix, Device.MACList[i], i, Device.groupId[i] == 0);
+    logDeviceStatus(prefix, Device.MACList[i], i, Device.groupId);
   }
   Serial.println("------------------");
 }
