@@ -31,16 +31,20 @@ int bufferIndex;
 char messger[128];
 uint8_t button = 0;
 
-group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS};
-static uint8_t currentRetryGroupId = 0;
-static unsigned long groupWindowStartMillis = 0;
-uint32_t currentScanSessionId = 0; // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
+group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS}; // Cấu hình nhóm mặc định xử lý ESPNOW
+size_t configuredAssignmentCount = 0;                                     // Tổng số bản ghi gán nhóm do Hub lưu trữ sau khi đọc lệnh cấu hình
+uint8_t configuredAssignmentMacList[MAX_DEVICES][6] = {0};                // Ds MAC đã được chỉ định nhóm theo cấu hình
+uint8_t configuredAssignmentGroupId[MAX_DEVICES] = {0};                   // Nhóm tương ứng cho từng MAC trong mảng
+static uint8_t currentRetryGroupId = 0;                                   // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
+static unsigned long groupWindowStartMillis = 0;                          // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
+uint32_t currentScanSessionId = 0;                                        // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
 
 // Biến lưu cấu hình
 int config_lid = 123;
 int config_id = 2025;
 bool config_received = false;
-uint32_t nod = 0; // số lượng thiết bị, cập nhật khi có node mới kết nối
+uint32_t nod = 0;      // số lượng thiết bị, cập nhật khi có node mới kết nối
+uint32_t group_id = 0; // Nhóm hiện hành được gán cho thiết bị
 int next_page = 0;
 int old_page = 0;
 
@@ -61,28 +65,6 @@ bool expired_flag = false; // Biến logic kiểm soát trạng thái
 uint8_t expired = expired_flag ? 1 : 0; // 1 là hết hạn, 0 là còn hạn
 
 // bool reported_before = false; // Đánh dấu đã từng phản hồi
-
-// Nhận gói Scan
-//  void onScanRequest()
-//  {
-//      if (!reported_before)
-//      {
-//          sendScanResponse(); // Gửi phản hồi về Master
-//          reported_before = true;
-//          Serial.println("Đã phản hồi SCAN");
-//      }
-//      else
-//      {
-//          Serial.println("Đã từng phản hồi trước đó, bỏ qua");
-//      }
-//  }
-
-// Rescan
-//  void onResetScanState()
-//  {
-//      reported_before = false; // Reset trạng thái để phản hồi lại lần scan tiếp theo
-//      Serial.println("Reset trạng thái: sẽ phản hồi SCAN tiếp theo");
-//  }
 
 // Khoảng thời gian chờ trước khi gửi lại yêu cầu trực tiếp tới từng node
 static const unsigned long RESPONSE_RETRY_INTERVAL = 3000; // 3 giây
@@ -124,7 +106,6 @@ static void advanceGroupWindowState(unsigned long nowMillis)
                     previousGroup);
     }
   }
-
   currentRetryGroupId = 0;
 }
 
@@ -142,31 +123,16 @@ static bool hasPendingResponses()
 }
 
 // Đánh dấu toàn bộ thiết bị đang chờ phản hồi sau khi đã broadcast yêu cầu.
-// includeKnownDevices = false nghĩa là chỉ đánh dấu các thiết bị chưa từng phản hồi.
-static bool markDevicesPendingForBroadcast(unsigned long nowMillis, bool includeKnownDevices)
+// Bao gồm cả các thiết bị đã từng phản hồi trong những lần quét trước.
+static bool markDevicesPendingForBroadcast(unsigned long nowMillis)
 {
   refreshGroupConfiguration();
+  applyConfiguredGroupsToKnownDevices();
 
   unsigned int pendingCount = 0;
-  unsigned int skippedCount = 0;
 
   for (int i = 0; i < Device.deviceCount; i++)
   {
-    bool shouldAwait = includeKnownDevices;
-
-    if (!includeKnownDevices)
-    {
-      shouldAwait = !Device.hasRespondedAtLeastOnce[i];
-      if (!shouldAwait)
-      {
-        Device.pendingResponse[i] = false;
-        Device.lastRequestMillis[i] = 0;
-        Device.lastScanSessionId[i] = currentScanSessionId;
-        skippedCount++;
-        continue;
-      }
-    }
-
     Device.pendingResponse[i] = true;
     Device.lastRequestMillis[i] = nowMillis;
     Device.lastResponseMillis[i] = 0;
@@ -189,10 +155,6 @@ static bool markDevicesPendingForBroadcast(unsigned long nowMillis, bool include
   {
     currentRetryGroupId = 0;
     groupWindowStartMillis = 0;
-    if (!includeKnownDevices && skippedCount > 0)
-    {
-      Serial.printf("ℹ️ Bỏ qua yêu cầu phản hồi lại cho %u node đã được ghi nhận trước đó.\n", skippedCount);
-    }
   }
 
   return awaitingBroadcastResponses;
@@ -209,7 +171,7 @@ static void startLicenseScan(bool includeKnownDevices)
   currentRetryGroupId = 0;
   groupWindowStartMillis = 0;
 
-  bool awaitingResponses = markDevicesPendingForBroadcast(nowMillis, includeKnownDevices);
+  bool awaitingResponses = markDevicesPendingForBroadcast(nowMillis);
 
   if (!awaitingResponses && includeKnownDevices && Device.deviceCount == 0)
   {
@@ -259,7 +221,7 @@ static void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsign
     dataDoc["group_id"] = nodeGroupId;
   }
 
-  appendGroupConfiguration(dataDoc, nodeGroupId, false);
+  appendGroupConfiguration(dataDoc, nodeGroupId, true); // Gửi kèm cấu hình để node cập nhật thứ tự phản hồi
 
   String output = createMessage(config_id, id_des, macSrc, macDesStr, opcode, dataDoc, nowMillis);
 
@@ -269,6 +231,7 @@ static void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsign
     return;
   }
 
+  memset(message.payload, 0, sizeof(message.payload));
   output.toCharArray(message.payload, sizeof(message.payload));
 
   ensurePeerRegistered(mac_des);
@@ -387,21 +350,8 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   bool includeAssignments = true;
   String output;
 
-  // while (true)
-  // {
-    DynamicJsonDocument dataDoc(128);
-    dataDoc["lid"] = lid;
-  //   appendGroupConfiguration(dataDoc, 0, includeAssignments);
-
-  //   output = createMessage(id_src, id_des, mac_src, mac_des, opcode, dataDoc, nowMillis);
-  //   if (output.length() <= sizeof(message.payload) || !includeAssignments)
-  //   {
-  //     break;
-  //   }
-
-  //   includeAssignments = false;
-  //   Serial.println("⚠️ Payload gần vượt giới hạn, gửi lại broadcast không kèm danh sách nhóm chi tiết.");
-  // }
+  DynamicJsonDocument dataDoc(128);
+  dataDoc["lid"] = lid;
 
   if (output.length() > sizeof(message.payload))
   {
@@ -416,7 +366,7 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   Serial.println(output);
 
   // Sau khi broadcast, đánh dấu toàn bộ node là đang chờ phản hồi
-  markDevicesPendingForBroadcast(nowMillis, true);
+  markDevicesPendingForBroadcast(nowMillis);
 }
 
 void setup()
@@ -489,18 +439,6 @@ unsigned long nowMillis = millis();
 // static unsigned long lastSendTime = 0;
 void loop()
 {
-
-  // lv_timer_handler();
-  // Serial.println("IDLE loop");
-  // delay(1000);
-  // if (datalic.expired)
-  // {
-  //     Serial.printf("Local ID: %d\n\r",datalic.lid);
-  //     Serial.printf("Device ID: %d\n\r",Device_ID);
-  //     Serial.printf("Duration: %d\n\r",datalic.duration);
-  //     datalic.expired=false;
-  // }
-  // }
   serial_pc();
   led.update(); // Gọi liên tục trong loop()
 
@@ -521,25 +459,6 @@ void loop()
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
       config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
       break;
-    // case 4:
-    //   Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
-    //   // Reset trạng thái để vòng lặp biết rằng đây là lượt quét mới
-    //   awaitingBroadcastResponses = false;
-    //   currentRetryGroupId = 0;
-    //   groupWindowStartMillis = 0;
-    //   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
-    //   // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
-    //   break;
-    // case 5:
-    //   Serial.println("Gửi lệnh LIC_GET_LICENSE_SCAN");
-    //   // Reset cờ chờ phản hồi vì sẽ tiến hành scan lại từ đầu
-    //   awaitingBroadcastResponses = false;
-    //   currentRetryGroupId = 0;
-    //   groupWindowStartMillis = 0;
-    //   memset(&Device, 0, sizeof(Device));
-    //   // sendGetLicenseBroadcast(Device_ID, WiFi.macAddress(), datalic.lid, millis());
-    //   // memset(&Device, 0, sizeof(Device));
-    //   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, millis());
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
       startLicenseScan(true);
@@ -579,9 +498,6 @@ void loop()
       ui_spinner1 = NULL;
     }
 
-    // lv_obj_clean(ui_Groupdevice); comment 2 dòng này 23/09
-    // lv_obj_invalidate(ui_Groupdevice);
-
     if ((next_page * maxLinesPerPage) >= Device.deviceCount)
     {
       next_page = 0; // Quay về trang đầu
@@ -599,7 +515,6 @@ void loop()
       lvgl_port_unlock();
       return;
     }
-    // Serial.printf("%d %d %d \n ", startIdx, endIdx, next_page);
 
     if (ui_Groupdevice)
     {
@@ -636,7 +551,7 @@ void loop()
       int count = 0;
       for (int j = 0; j < Device.deviceCount; j++)
       {
-        if (Device.LocalID[j] == Device.LocalID[i])
+        if (Device.DeviceID[j] == Device.DeviceID[i])
         {
           count++;
         }

@@ -26,13 +26,12 @@ typedef struct {
     uint8_t groupId[MAX_DEVICES]; //Nhóm phản hồi được cấu hình cho thiết bị 
     bool hasRespondedAtLeastOnce[MAX_DEVICES]; // Đánh dấu thiết bị đã từng phản hồi thành công
     uint32_t lastScanSessionId[MAX_DEVICES];   // Lần quét gần nhất mà thiết bị đã phản hồi
+    uint32_t groupLastScanSessionId[MAX_DEVICES]; //Phiên quét đầy đủ gần nhất mà nhóm đã phản hồi.
+    uint32_t groupTrackingSessionId; //Phiên scan (Scan) hiện tại dùng để đáu dấu nhóm
     int deviceCount;
 } device_info;
 extern device_info Device;
 
-/*
-
-*/
 // Thêm mới hoặc cập nhật thông tin thiết bị trong danh sách
 void addNodeToList(int id_src, int lid, uint32_t nodeId, uint32_t timestamp);
 void printDeviceList();

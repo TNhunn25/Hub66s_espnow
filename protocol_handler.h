@@ -13,6 +13,8 @@
 #include "serial.h"
 #include "function.h"
 
+#include "espnow_group.h"
+
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId);
 
 static String formatMacAddress(const uint8_t mac[6]);
@@ -133,8 +135,6 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     }
 
     addMacToList(id_src, lid, mac_addr, time_temp, groupId);
-    // printDeviceList();
-    // Serial.println(data["license"].as<String>());
     break;
   }
 
@@ -221,8 +221,16 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   int opcode = LIC_GET_LICENSE;
   String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(128);
+  DynamicJsonDocument dataDoc(250);
   dataDoc["lid"] = lid;
+
+  refreshGroupConfiguration();
+  uint8_t targetGroupId = findLowestPendingGroupId();
+  if(targetGroupId !=0)
+  {
+    dataDoc["group_id"] = targetGroupId;
+  }
+  appendGroupConfiguration(dataDoc, targetGroupId, true);
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
@@ -237,12 +245,6 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   Serial.println("📤 Gửi HUB_GET_LICENSE:");
   Serial.println(output);
 }
-
-// void getlicenseForMac(int id_des, const uint8_t mac_des[6], int lid, unsigned long now)
-// {
-//   String macString = formatMacAddress(mac_des);
-//   getlicense(id_des, macString, lid, now);
-// }
 
 void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned long now)
 {
