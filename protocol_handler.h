@@ -204,7 +204,7 @@ void set_license(int id_des, int lid, String mac_des, time_t created, uint32_t d
 
   if (output.length() > sizeof(message.payload))
   {
-    Serial.println("❌ Payload quá lớn!");
+    Serial.println("❌ Payload quá lớn! 1");
     return;
   }
 
@@ -221,7 +221,7 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
   int opcode = LIC_GET_LICENSE;
   String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(250);
+  DynamicJsonDocument dataDoc(512);
   dataDoc["lid"] = lid;
 
   refreshGroupConfiguration();
@@ -235,7 +235,7 @@ void getlicense(int id_des, String mac_des, int lid, unsigned long now)
 
   if (output.length() > sizeof(message.payload))
   {
-    Serial.println("❌ Payload quá lớn!");
+    Serial.println("❌ Payload quá lớn! 2");
     return;
   }
 
@@ -251,16 +251,17 @@ void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned l
   int opcode = LIC_CONFIG_DEVICE;
   String mac = WiFi.macAddress();
   int id_src = config_id;
-  DynamicJsonDocument dataDoc(128);
+  DynamicJsonDocument dataDoc(256);
   dataDoc["id"] = id_des;
   dataDoc["lid"] = lid;
   dataDoc["nod"] = nod;
+  appendGroupConfiguration(dataDoc, 0, false);
 
   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
   {
-    Serial.println("❌ Payload quá lớn!");
+    Serial.println("❌ Payload quá lớn! 3");
     return;
   }
 

@@ -48,7 +48,7 @@ int findMacIndex(const uint8_t *mac_addr)
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId)
 {
   // Kiểm tra xem node đã có trong danh sách hay chưa
-  int existingIndex = findMacIndex(mac_addr);
+  int existingIndex = findDeviceIndexByMac(mac_addr);
 
   refreshGroupConfiguration(); //Sau khi đọc cấu hình mới nhất, mọi phép gán nhóm sẽ được cập nhật trước khi xử lý phản hồi.
 
@@ -61,18 +61,23 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
     Device.responseCount[existingIndex]++;
     Device.lastResponseMillis[existingIndex] = millis();
     Device.pendingResponse[existingIndex] = false;
-
-    uint8_t requestedGroup = groupId;
-    if(requestedGroup == 0)
-    {
-      requestedGroup = getConfiguredGroupForMac(Device.MACList[existingIndex]);
-    }
-
-    Device.groupId[existingIndex] = resolveGroupIdForIndex(existingIndex, requestedGroup);
+    Device.groupId[existingIndex] = resolveGroupIdForIndex(existingIndex);
     Device.hasRespondedAtLeastOnce[existingIndex] = true;
     Device.lastScanSessionId[existingIndex] = currentScanSessionId;
 
     logDeviceStatus("🔄 Cập nhật thiết bị", mac_addr, existingIndex, groupId == 0);
+    return;
+  }
+
+  uint32_t configuredGroupLimit = static_cast<uint32_t>(resolveRequestedGroupCount()) * resolveRequestedGroupSize();
+  uint32_t computedGroupLimit = static_cast<uint32_t>(groupConfig.groupCount) * groupConfig.groupSize;
+
+  uint32_t maxAllowedDevices = configuredGroupLimit != 0 ? configuredGroupLimit : computedGroupLimit;
+
+  if (maxAllowedDevices != 0 && Device.deviceCount >= maxAllowedDevices)
+  {
+    Serial.printf("Không thể thêm thiết bị mới: đã đạt giới hạn %lu thiết bị theo cấu hình nhóm.\n",
+                  static_cast<unsigned long>(maxAllowedDevices));
     return;
   }
 
@@ -93,12 +98,7 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   Device.lastResponseMillis[index] = millis();  // Ghi nhận thời điểm phản hồi
   Device.lastRequestMillis[index] = 0;          // Chưa có lần yêu cầu đơn lẻ nào
   Device.pendingResponse[index] = false;        // Đã phản hồi cho lượt broadcast hiện tại
-  uint8_t requestedGroup = groupId;
-  if (requestedGroup == 0)
-  {
-    requestedGroup = getConfiguredGroupForMac(Device.MACList[index]);
-  }
-  Device.groupId[index] = resolveGroupIdForIndex(index, requestedGroup);
+  Device.groupId[index] = resolveGroupIdForIndex(index);
   Device.hasRespondedAtLeastOnce[index] = true;
   Device.lastScanSessionId[index] = currentScanSessionId;
   Device.deviceCount++;
@@ -113,7 +113,7 @@ void printDeviceList()
   {
     char prefix[24];
     snprintf(prefix, sizeof(prefix),"📋 Thiết bị %d", i + 1);
-    logDeviceStatus(prefix, Device.MACList[i], i, Device.groupId[i] == 0);
+    logDeviceStatus(prefix, Device.MACList[i], i, Device.groupId);
   }
   Serial.println("------------------");
 }
