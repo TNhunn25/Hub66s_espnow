@@ -3,10 +3,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <stdio.h>
 
 #include "function.h"
 #include "config.h"
@@ -23,206 +20,51 @@ typedef struct
 } group_config_t;
 
 extern group_config_t groupConfig;
-extern size_t configuredAssignmentCount;
-extern uint8_t configuredAssignmentMac[MAX_DEVICES][6];
-extern uint8_t configuredAssignmentGroupId[MAX_DEVICES];
 
-/// @brief Số nhóm mặc định mà Hub luôn cố gắng duy trì.
-constexpr uint8_t DEFAULT_TARGET_GROUP_COUNT = 5;
-/// @brief Giới hạn cứng số thiết bị trong một nhóm.
-constexpr uint8_t MAX_DEVICES_PER_GROUP = 20;
+
+/// @brief Chuyển địa chỉ MAC sang dạng chuỗi "AA:BB:CC:DD:EE:FF" để tiện ghi log.
+inline String macToString(const uint8_t *mac)
+{
+  if (mac == nullptr)
+  {
+    return String();
+  }
+
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(macStr);
+}
+
 /// @brief Thời gian chờ phản hồi mặc định cho mỗi nhóm (ms).
 constexpr uint32_t DEFAULT_GROUP_RESPONSE_WINDOW_MS = 3000; // cũ 1500
 /// @brief Ngưỡng tối thiểu để tránh cấu hình thời gian chờ quá thấp (ms).
 constexpr uint32_t MIN_GROUP_RESPONSE_WINDOW_MS = 500;
-/// @brief Số bản ghi gán nhóm tối đa được gửi kèm trong một gói JSON.
-constexpr size_t MAX_GROUP_ASSIGNMENTS_IN_MESSAGE = 24;
-
-inline bool isZeroMac(const uint8_t mac[6])
+/// @brief Chuẩn hóa số lượng nhóm được yêu cầu, đảm bảo tối thiểu là 1.
+inline uint8_t resolveRequestedGroupCount()
 {
-  if (mac == nullptr)
-  {
-    return true;
-  }
-  for (size_t i = 0; i < 6; i++)
-  {
-    if (mac[i] != 0)
-    {
-      return false;
-    }
-  }
-  return true;
+  return desired_group_count == 0 ? 1 : desired_group_count;
 }
 
-inline bool parseMacString(const char *text, uint8_t outMac[6])
+/// @brief Chuẩn hóa kích thước nhóm theo cấu hình và đảm bảo giá trị hợp lệ.
+inline uint8_t resolveRequestedGroupSize()
 {
-  if (text == nullptr || outMac == nullptr)
+  uint8_t size = desired_group_size;
+  if (size == 0)
   {
-    return false;
+    size = 1;
   }
-
-  int values[6] = {0};
-  if (sscanf(text, "%x:%x:%x:%x:%x:%x",
-             &values[0], &values[1], &values[2],
-             &values[3], &values[4], &values[5]) == 6)
-  {
-    for (size_t i = 0; i < 6; i++)
-    {
-      if (values[i] < 0 || values[i] > 0xFF)
-      {
-        return false;
-      }
-      outMac[i] = static_cast<uint8_t>(values[i]);
-    }
-    return true;
-  }
-
-  size_t len = strlen(text);
-  if (len == 12)
-  {
-    for (size_t i = 0; i < 6; i++)
-    {
-      char buf[3] = {text[i * 2], text[i * 2 + 1], '\0'};
-      if (!isxdigit(buf[0]) || !isxdigit(buf[1]))
-      {
-        return false;
-      }
-      outMac[i] = static_cast<uint8_t>(strtoul(buf, nullptr, 16));
-    }
-    return true;
-  }
-
-  return false;
-}
-
-inline void clearConfiguredGroupAssignments()
-{
-  configuredAssignmentCount = 0;
-  memset(configuredAssignmentMac, 0, sizeof(configuredAssignmentMac));
-  memset(configuredAssignmentGroupId, 0, sizeof(configuredAssignmentGroupId));
-}
-
-inline void removeConfiguredGroupAssignmentAt(size_t idx)
-{
-  if (idx >= configuredAssignmentCount)
-  {
-    return;
-  }
-
-  for (size_t i = idx + 1; i < configuredAssignmentCount; i++)
-  {
-    memcpy(configuredAssignmentMac[i - 1], configuredAssignmentMac[i], 6);
-    configuredAssignmentGroupId[i - 1] = configuredAssignmentGroupId[i];
-  }
-
-  memset(configuredAssignmentMac[configuredAssignmentCount - 1], 0, 6);
-  configuredAssignmentGroupId[configuredAssignmentCount - 1] = 0;
-  configuredAssignmentCount--;
-}
-
-inline void setConfiguredGroupAssignment(const uint8_t mac[6], uint8_t groupId)
-{
-  if (isZeroMac(mac))
-  {
-    return;
-  }
-
-  for (size_t i = 0; i < configuredAssignmentCount; i++)
-  {
-    if (memcmp(configuredAssignmentMac[i], mac, 6) == 0)
-    {
-      if (groupId == 0)
-      {
-        removeConfiguredGroupAssignmentAt(i);
-      }
-      else
-      {
-        configuredAssignmentGroupId[i] = groupId;
-      }
-      return;
-    }
-  }
-
-  if (groupId == 0 || configuredAssignmentCount >= MAX_DEVICES)
-  {
-    return;
-  }
-
-  memcpy(configuredAssignmentMac[configuredAssignmentCount], mac, 6);
-  configuredAssignmentGroupId[configuredAssignmentCount] = groupId;
-  configuredAssignmentCount++;
-}
-
-inline uint8_t getConfiguredGroupForMac(const uint8_t mac[6])
-{
-  if (isZeroMac(mac))
-  {
-    return 0;
-  }
-
-  for (size_t i = 0; i < configuredAssignmentCount; i++)
-  {
-    if (memcmp(configuredAssignmentMac[i], mac, 6) == 0)
-    {
-      return configuredAssignmentGroupId[i];
-    }
-  }
-  return 0;
-}
-
-inline bool assignConfiguredGroupForLocalId(int localId, uint8_t groupId)
-{
-  if (localId <= 0)
-  {
-    return false;
-  }
-
-  bool assigned = false;
-  for (int i = 0; i < Device.deviceCount; i++)
-  {
-    if (Device.LocalID[i] == localId)
-    {
-      setConfiguredGroupAssignment(Device.MACList[i], groupId);
-      assigned = true;
-    }
-  }
-
-  if (!assigned)
-  {
-    Serial.printf("⚠️ Không tìm thấy MAC cho Local ID %d khi cấu hình nhóm.\n", localId);
-  }
-
-  return assigned;
-}
-
-inline uint8_t getHighestConfiguredGroupId()
-{
-  uint8_t highest = 0;
-  for (size_t i = 0; i < configuredAssignmentCount; i++)
-  {
-    if (configuredAssignmentGroupId[i] > highest)
-    {
-      highest = configuredAssignmentGroupId[i];
-    }
-  }
-  return highest;
+  return size;
 }
 
 /**
  * @brief Xác định group id cần sử dụng cho thiết bị ở index cho trước.
  *
- * Khi firmware hoặc bản cấu hình yêu cầu một group cụ thể (requestedGroup),
- * giá trị đó sẽ được trả về ngay. Ngược lại, hàm sẽ ánh xạ index của thiết bị
- * sang group dựa trên groupSize hiện hành để đảm bảo các nhóm được lấp đầy
- * tuần tự.
+ * Hàm ánh xạ vị trí của thiết bị trong danh sách sang group dựa trên kích thước
+ * nhóm hiện hành để đảm bảo các nhóm được lấp đầy tuần tự và đồng đều.
  */
-inline uint8_t resolveGroupIdForIndex(int index, uint8_t requestedGroup)
+inline uint8_t resolveGroupIdForIndex(int index)
 {
-  if (requestedGroup != 0)
-  {
-    return requestedGroup;
-  }
-
   uint8_t size = groupConfig.groupSize;
   if (size == 0)
   {
@@ -251,7 +93,8 @@ inline uint32_t getPlannedNodeCount()
   uint32_t total = knownDevices > configuredNodes ? knownDevices : configuredNodes;
   if (total == 0)
   {
-    total = DEFAULT_TARGET_GROUP_COUNT;
+    // total = DEFAULT_TARGET_GROUP_COUNT;
+    total = static_cast<uint32_t>(resolveRequestedGroupCount()) * resolveRequestedGroupSize();
   }
   return total;
 }
@@ -260,21 +103,26 @@ inline uint32_t getPlannedNodeCount()
  * @brief Đồng bộ lại cấu hình nhóm theo các giá trị hiện tại của hệ thống.
  *
  * Hàm này chịu trách nhiệm giữ cho groupSize và groupCount luôn phản ánh mục
- * tiêu "5 nhóm, tối đa 20 thiết bị". Nó cũng đảm bảo responseWindowMs nằm
- * trong giới hạn cho phép để tránh cấu hình lỗi.
+ * tiêu được xác định qua desired_group_count/desired_group_size. Nó cũng đảm
+ * bảo responseWindowMs nằm trong giới hạn cho phép để tránh cấu hình lỗi.
+ *
  */
+
+inline void applyConfiguredGroupsToKnownDevices();
+
 inline void refreshGroupConfiguration()
 {
   groupConfig.totalNodes = getPlannedNodeCount();
 
-  uint32_t targetCount = DEFAULT_TARGET_GROUP_COUNT;
+  uint32_t targetCount = resolveRequestedGroupCount();
   if (targetCount == 0)
   {
     targetCount = 1;
   }
 
   uint32_t effectiveNodes = groupConfig.totalNodes;
-  uint32_t maxSupportedNodes = static_cast<uint32_t>(MAX_DEVICES_PER_GROUP) * targetCount;
+  uint8_t requestedGroupSize = resolveRequestedGroupSize();
+  uint32_t maxSupportedNodes = static_cast<uint32_t>(requestedGroupSize) * targetCount;
   if (effectiveNodes > maxSupportedNodes)
   {
     effectiveNodes = maxSupportedNodes;
@@ -285,9 +133,9 @@ inline void refreshGroupConfiguration()
   {
     desiredSize32 = 1;
   }
-  if (desiredSize32 > MAX_DEVICES_PER_GROUP)
+  if (desiredSize32 > requestedGroupSize)
   {
-    desiredSize32 = MAX_DEVICES_PER_GROUP;
+    desiredSize32 = requestedGroupSize;
   }
 
   groupConfig.groupSize = static_cast<uint8_t>(desiredSize32);
@@ -306,16 +154,14 @@ inline void applyConfiguredGroupsToKnownDevices()
 {
   for (int i = 0; i < Device.deviceCount; i++)
   {
-    uint8_t configuredGroup = getConfiguredGroupForMac(Device.MACList[i]);
-    if (configuredGroup != 0)
-    {
-      Device.groupId[i] = configuredGroup;
-    }
-    else
-    {
-      Device.groupId[i] = resolveGroupIdForIndex(i, 0);
-    }
+    Device.groupId[i] = resolveGroupIdForIndex(i);
   }
+}
+
+inline void recalcAndApplyGroupConfiguration()
+{
+  refreshGroupConfiguration();
+  applyConfiguredGroupsToKnownDevices();
 }
 
 /**
@@ -331,19 +177,51 @@ inline uint8_t ensureDeviceGroup(int index)
   {
     return 1;
   }
-  uint8_t configuredGroup = getConfiguredGroupForMac(Device.MACList[index]);
-  if (configuredGroup != 0)
-  {
-    Device.groupId[index] = configuredGroup;
-    return configuredGroup;
-  }
 
-  if (Device.groupId[index] == 0)
+  if (Device.groupId[index] == 0 || Device.groupId[index] > groupConfig.groupCount)
   {
-    Device.groupId[index] = resolveGroupIdForIndex(index, 0);
+    Device.groupId[index] = resolveGroupIdForIndex(index);
   }
   return Device.groupId[index];
 }
+
+/**
+ * @brief Tìm index trong danh sách thiết bị dựa trên địa chỉ MAC.
+ */
+inline int findDeviceIndexByMac(const uint8_t mac[6])
+{
+  if (mac == nullptr)
+  {
+    return -1;
+  }
+
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (memcmp(Device.MACList[i], mac, 6) == 0)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * @brief Đảm bảo và trả về group id gắn với thiết bị có MAC tương ứng.
+ */
+inline uint8_t ensureDeviceGroupForMac(const uint8_t mac[6])
+{
+  int index = findDeviceIndexByMac(mac);
+  if (index < 0)
+  {
+    return 0;
+  }
+  return ensureDeviceGroup(index);
+}
+
+/// @brief Khoảng thời gian chờ trước khi gửi lại yêu cầu trực tiếp tới từng node (ms).
+constexpr unsigned long RESPONSE_RETRY_INTERVAL = 3000;
+/// @brief Giới hạn số gói tin gửi lại trong mỗi vòng lặp để tránh nghẽn mạng.
+constexpr size_t MAX_DIRECT_RETRY_PER_LOOP = 3;
 
 /**
  * @brief Kiểm tra xem còn thiết bị nào trong group đang cần phản hồi hay không.
@@ -366,164 +244,7 @@ inline bool hasPendingResponsesInGroup(uint8_t groupId)
   return false;
 }
 
-inline void parseGroupAssignmentVariant(const JsonVariantConst &entry, uint8_t groupId)
-{
-  if (groupId == 0)
-  {
-    return;
-  }
-
-  if (entry.is<JsonArrayConst>())
-  {
-    for (JsonVariantConst nested : entry.as<JsonArrayConst>())
-    {
-      parseGroupAssignmentVariant(nested, groupId);
-    }
-    return;
-  }
-
-  if (entry.is<JsonObjectConst>())
-  {
-    JsonObjectConst obj = entry.as<JsonObjectConst>();
-    bool handled = false;
-
-    const char *macText = nullptr;
-    if (obj.containsKey("mac"))
-    {
-      macText = obj["mac"].as<const char *>();
-    }
-    else if (obj.containsKey("mac_addr"))
-    {
-      macText = obj["mac_addr"].as<const char *>();
-    }
-    if (macText != nullptr)
-    {
-      uint8_t mac[6] = {0};
-      if (parseMacString(macText, mac))
-      {
-        setConfiguredGroupAssignment(mac, groupId);
-        handled = true;
-      }
-      else
-      {
-        Serial.printf("⚠️ Không thể phân tích địa chỉ MAC '%s' trong cấu hình nhóm.\n",
-                      macText);
-      }
-    }
-
-    if (obj.containsKey("value"))
-    {
-      parseGroupAssignmentVariant(obj["value"], groupId);
-      handled = true;
-    }
-
-    if (obj.containsKey("lid"))
-    {
-      handled = assignConfiguredGroupForLocalId(obj["lid"].as<int>(), groupId) || handled;
-    }
-    if (obj.containsKey("local_id"))
-    {
-      handled = assignConfiguredGroupForLocalId(obj["local_id"].as<int>(), groupId) || handled;
-    }
-    if (obj.containsKey("id"))
-    {
-      handled = assignConfiguredGroupForLocalId(obj["id"].as<int>(), groupId) || handled;
-    }
-
-    if (!handled)
-    {
-      Serial.println("⚠️ Bỏ qua cấu hình nhóm không xác định (không có trường mac/lid).");
-    }
-    return;
-  }
-
-  if (entry.is<const char *>())
-  {
-    const char *text = entry.as<const char *>();
-    if (text == nullptr)
-    {
-      return;
-    }
-
-    uint8_t mac[6] = {0};
-    if (parseMacString(text, mac))
-    {
-      setConfiguredGroupAssignment(mac, groupId);
-      return;
-    }
-
-    const char *cursor = text;
-    while (*cursor != '\0')
-    {
-      char *endPtr = nullptr;
-      long value = strtol(cursor, &endPtr, 10);
-      if (endPtr == cursor)
-      {
-        if (*cursor == '\0')
-        {
-          break;
-        }
-        cursor++;
-        continue;
-      }
-
-      if (value != 0)
-      {
-        assignConfiguredGroupForLocalId(static_cast<int>(value), groupId);
-      }
-      cursor = endPtr;
-    }
-    return;
-  }
-
-  if (entry.is<int>() || entry.is<long>() || entry.is<unsigned int>() || entry.is<unsigned long>())
-  {
-    assignConfiguredGroupForLocalId(entry.as<int>(), groupId);
-  }
-}
-
-inline void updateConfiguredGroupAssignmentsFromJson(JsonVariantConst groupVariant)
-{
-  if (groupVariant.isNull())
-  {
-    return;
-  }
-
-  if (!groupVariant.is<JsonObjectConst>())
-  {
-    Serial.println("⚠️ Trường Group không hợp lệ (không phải object).");
-    return;
-  }
-
-  clearConfiguredGroupAssignments();
-
-  JsonObjectConst groupObj = groupVariant.as<JsonObjectConst>();
-  for (JsonPairConst kv : groupObj)
-  {
-    const char *keyStr = kv.key().c_str();
-    if (keyStr == nullptr)
-    {
-      continue;
-    }
-
-    long groupValue = strtol(keyStr, nullptr, 10);
-    if (groupValue <= 0 || groupValue > 255)
-    {
-      continue;
-    }
-
-    uint8_t groupId = static_cast<uint8_t>(groupValue);
-    parseGroupAssignmentVariant(kv.value(), groupId);
-  }
-
-  refreshGroupConfiguration();
-  applyConfiguredGroupsToKnownDevices();
-
-  Serial.printf("⚙️ Đã cập nhật %u cấu hình nhóm, nhóm cao nhất: %u.\n",
-                static_cast<unsigned int>(configuredAssignmentCount),
-                getHighestConfiguredGroupId());
-}
-
+/// @brief Tìm group id nhỏ nhất còn node đang chờ phản hồi.
 inline uint8_t findLowestPendingGroupId()
 {
   uint8_t lowest = 0;
@@ -548,7 +269,9 @@ inline uint8_t findLowestPendingGroupId()
 
   if (lowest == 0 && groupConfig.groupCount > 0)
   {
-    lowest = 1;
+    // lowest = 1;
+    // Không có node nào đang pending nên không nên ép Hub gửi group_id=1.
+    return 0;
   }
   return lowest;
 }
@@ -556,46 +279,384 @@ inline uint8_t findLowestPendingGroupId()
 /**
  * @brief Gửi kèm thông tin cấu hình nhóm vào JSON trả về cho thiết bị.
  *
- * Payload chỉ giữ lại danh sách gán Local ID -> Group ID để node biết mình
- * thuộc nhóm nào và phản hồi theo thứ tự nhóm (1, 2, 3, ...). Các thông số
- * như group_count, group_size hay range được loại bỏ nhằm rút gọn bản tin.
- *
- * Khi includeAssignments = false, hàm sẽ không thêm trường group_cfg để tránh
- * gửi kèm metadata nhóm trong payload.
+ * Payload luôn chứa metadata tối thiểu (count/size) để node tự điều chỉnh thứ tự
+ * phản hồi. Tham số includeAssignments được giữ lại nhằm tương thích với API
+ * cũ nhưng hiện không còn thêm danh sách gán chi tiết.
  */
 inline void appendGroupConfiguration(DynamicJsonDocument &dataDoc, uint8_t targetGroupId, bool includeAssignments)
 {
-  if (!includeAssignments)
-  {
-    return;
-  }
-
   JsonObject groupCfg = dataDoc.createNestedObject("group_cfg");
   if (targetGroupId != 0)
   {
     groupCfg["target_group_id"] = targetGroupId;
   }
 
-  JsonArray assignments = groupCfg.createNestedArray("assignments");
-  size_t includedAssignments = Device.deviceCount;
-  if (includedAssignments > MAX_GROUP_ASSIGNMENTS_IN_MESSAGE)
+  groupCfg["count"] = groupConfig.groupCount;
+  groupCfg["size"] = groupConfig.groupSize;
+
+  if (!includeAssignments)
   {
-    includedAssignments = MAX_GROUP_ASSIGNMENTS_IN_MESSAGE;
+    return;
   }
-  for (size_t i = 0; i < includedAssignments; i++)
+
+  JsonArray assignments = groupCfg.createNestedArray("assignments");
+  for (int i = 0; i < Device.deviceCount; i++)
   {
-    JsonObject entry = assignments.createNestedObject();
+    uint8_t deviceGroup = ensureDeviceGroup(i);
+    if (deviceGroup == 0)
+    {
+      continue;
+    }
+
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             Device.MACList[i][0],
-             Device.MACList[i][1],
-             Device.MACList[i][2],
-             Device.MACList[i][3],
-             Device.MACList[i][4],
-             Device.MACList[i][5]);
+             Device.MACList[i][0], Device.MACList[i][1], Device.MACList[i][2],
+             Device.MACList[i][3], Device.MACList[i][4], Device.MACList[i][5]);
+
+    JsonObject entry = assignments.createNestedObject();
     entry["mac"] = macStr;
-    entry["lid"] = Device.LocalID[i];
-    entry["gid"] = ensureDeviceGroup(i);
+    entry["group_id"] = deviceGroup;
+  }
+}
+
+/**
+ * @brief Theo dõi trạng thái hiện tại của quá trình quét/rescan ESPNOW.
+ */
+struct RescanState
+{
+  bool awaitingBroadcastResponses = false; ///< Hub đang chờ phản hồi từ các node sau broadcast.
+  uint8_t currentRetryGroupId = 0;         ///< Nhóm hiện tại đang ưu tiên gửi lại yêu cầu trực tiếp.
+  unsigned long groupWindowStartMillis = 0;///< Mốc thời gian bắt đầu chờ phản hồi của nhóm hiện tại.
+  uint32_t currentScanSessionId = 0;       ///< Bộ đếm phiên quét phục vụ việc nhận diện phiên mới.
+  uint8_t lastBroadcastedGroupId = 0;      ///< Nhóm gần nhất đã được broadcast trong phiên hiện hành.
+};
+
+extern RescanState rescanState;
+
+inline bool isAwaitingBroadcastResponses()
+{
+  return rescanState.awaitingBroadcastResponses;
+}
+
+inline void resetRescanState()
+{
+  rescanState.awaitingBroadcastResponses = false;
+  rescanState.currentRetryGroupId = 0;
+  rescanState.groupWindowStartMillis = 0;
+  rescanState.lastBroadcastedGroupId = 0;
+}
+
+inline void advanceGroupWindowState(unsigned long nowMillis)
+{
+  if (rescanState.currentRetryGroupId == 0)
+  {
+    return;
+  }
+
+  while (rescanState.currentRetryGroupId <= groupConfig.groupCount)
+  {
+    if (hasPendingResponsesInGroup(rescanState.currentRetryGroupId))
+    {
+      return;
+    }
+
+    uint8_t previousGroup = rescanState.currentRetryGroupId;
+    rescanState.currentRetryGroupId++;
+    rescanState.groupWindowStartMillis = nowMillis;
+    if (rescanState.currentRetryGroupId <= groupConfig.groupCount)
+    {
+      Serial.printf("⏭️ Chuyển sang nhóm %u sau khi nhóm %u đã hoàn tất.\n",
+                    rescanState.currentRetryGroupId,
+                    previousGroup);
+    }
+  }
+
+  rescanState.currentRetryGroupId = 0;
+}
+
+inline bool hasPendingResponses()
+{
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (Device.pendingResponse[i])
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline bool markDevicesPendingForBroadcast(unsigned long nowMillis, bool includeKnownDevices, unsigned int *outSkippedKnownDevices = nullptr)
+{
+  recalcAndApplyGroupConfiguration();
+
+  unsigned int pendingCount = 0;
+  unsigned int skippedCount = 0;
+
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    bool shouldAwait = includeKnownDevices;
+
+    if (!includeKnownDevices)
+    {
+      shouldAwait = !Device.hasRespondedAtLeastOnce[i];
+      if (!shouldAwait)
+      {
+        Device.pendingResponse[i] = false;
+        Device.lastRequestMillis[i] = 0;
+        skippedCount++;
+        continue;
+      }
+    }
+
+    Device.pendingResponse[i] = true;
+    Device.lastRequestMillis[i] = nowMillis;
+    Device.lastResponseMillis[i] = 0;
+    ensureDeviceGroup(i);
+    pendingCount++;
+  }
+
+  rescanState.awaitingBroadcastResponses = pendingCount > 0;
+  if (outSkippedKnownDevices)
+  {
+    *outSkippedKnownDevices = skippedCount;
+  }
+
+  if (rescanState.awaitingBroadcastResponses)
+  {
+    rescanState.currentRetryGroupId = groupConfig.groupCount > 0 ? 1 : 0;
+    rescanState.groupWindowStartMillis = nowMillis;
+    rescanState.lastBroadcastedGroupId = 0;
+    Serial.printf("⏳ Đang chờ phản hồi từ %u node đã biết...\n", pendingCount);
+    Serial.printf("   • Tổng nhóm: %u, số node trong nhóm: %u, thời gian chờ mỗi nhóm: %lums\n",
+                  groupConfig.groupCount,
+                  groupConfig.groupSize,
+                  static_cast<unsigned long>(groupConfig.responseWindowMs));
+  }
+  else
+  {
+    resetRescanState();
+  }
+
+  return rescanState.awaitingBroadcastResponses;
+}
+
+inline void broadcastNextPendingGroupIfNeeded(unsigned long nowMillis)
+{
+  if (!rescanState.awaitingBroadcastResponses)
+  {
+    return;
+  }
+
+  uint8_t nextGroupId = findLowestPendingGroupId();
+  if (nextGroupId == 0)
+  {
+    return;
+  }
+
+  if (nextGroupId == rescanState.lastBroadcastedGroupId)
+  {
+    return;
+  }
+
+  DynamicJsonDocument dataDoc(512);
+  dataDoc["lid"] = datalic.lid;
+  dataDoc["group_id"] = nextGroupId;
+  appendGroupConfiguration(dataDoc, nextGroupId, false);
+
+  String macSrc = WiFi.macAddress();
+  String macDes = WiFi.macAddress();
+  String output = createMessage(config_id,
+                                Device_ID,
+                                macSrc,
+                                macDes,
+                                LIC_GET_LICENSE,
+                                dataDoc,
+                                nowMillis);
+
+  if (output.length() > sizeof(message.payload))
+  {
+    Serial.println("❌ Payload quá lớn khi broadcast nhóm!");
+    return;
+  }
+
+  memset(message.payload, 0, sizeof(message.payload));
+  output.toCharArray(message.payload, sizeof(message.payload));
+  esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
+
+  Serial.printf("\n📤 Gửi HUB_GET_LICENSE broadcast cho nhóm %u:\n", nextGroupId);
+  Serial.println(output);
+
+  rescanState.lastBroadcastedGroupId = nextGroupId;
+  rescanState.currentRetryGroupId = nextGroupId;
+  rescanState.groupWindowStartMillis = nowMillis;
+}
+
+inline void startLicenseScan(bool includeKnownDevices)
+{
+  unsigned long nowMillis = millis();
+
+  rescanState.currentScanSessionId = ++currentScanSessionId;
+
+  rescanState.awaitingBroadcastResponses = false;
+  rescanState.currentRetryGroupId = 0;
+  rescanState.groupWindowStartMillis = 0;
+
+  unsigned int skippedKnownDevices = 0;
+  bool awaitingResponses = markDevicesPendingForBroadcast(nowMillis,
+                                                          includeKnownDevices,
+                                                          &skippedKnownDevices);
+
+  if (!awaitingResponses && includeKnownDevices && Device.deviceCount == 0)
+  {
+    Serial.println("ℹ️ Chưa có thiết bị nào được ghi nhận để thực hiện rescan.");
+  }
+
+  broadcastNextPendingGroupIfNeeded(nowMillis);
+}
+
+inline void ensurePeerRegistered(const uint8_t *mac_addr)
+{
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, mac_addr, 6);
+  peerInfo.channel = 1;
+  peerInfo.encrypt = false;
+
+  esp_err_t result = esp_now_add_peer(&peerInfo);
+  if (result != ESP_OK && result != ESP_ERR_ESPNOW_EXIST)
+  {
+    Serial.printf("❌ Không thể thêm peer %s (err=%d)\n",
+                  macToString(mac_addr).c_str(),
+                  result);
+  }
+}
+
+inline void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsigned long nowMillis)
+{
+  int opcode = LIC_GET_LICENSE;
+  String macSrc = WiFi.macAddress();
+  String macDesStr = macToString(mac_des);
+
+  recalcAndApplyGroupConfiguration();
+
+  uint8_t nodeGroupId = ensureDeviceGroupForMac(mac_des);
+  DynamicJsonDocument dataDoc(512);
+  dataDoc["lid"] = lid;
+  if (nodeGroupId != 0)
+  {
+    dataDoc["group_id"] = nodeGroupId;
+  }
+
+  appendGroupConfiguration(dataDoc, nodeGroupId, false);
+
+  String output = createMessage(config_id, id_des, macSrc, macDesStr, opcode, dataDoc, nowMillis);
+
+  if (output.length() > sizeof(message.payload))
+  {
+    Serial.printf("❌ Payload quá lớn khi gửi lại cho %s!\n", macDesStr.c_str());
+    return;
+  }
+
+  memset(message.payload, 0, sizeof(message.payload));
+  output.toCharArray(message.payload, sizeof(message.payload));
+
+  ensurePeerRegistered(mac_des);
+  esp_now_send(mac_des, (uint8_t *)&message, sizeof(message));
+
+  Serial.printf("\n📤 Gửi HUB_GET_LICENSE trực tiếp tới %s (nhóm %u):\n",
+                macDesStr.c_str(),
+                nodeGroupId);
+  Serial.println(output);
+}
+
+inline void handlePendingResponses()
+{
+  if (!rescanState.awaitingBroadcastResponses)
+  {
+    return;
+  }
+
+  unsigned long nowMillis = millis();
+  recalcAndApplyGroupConfiguration();
+
+  bool hadAnyRequest = false;
+
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (Device.lastRequestMillis[i] != 0)
+    {
+      hadAnyRequest = true;
+      break;
+    }
+  }
+
+  advanceGroupWindowState(nowMillis);
+
+  if (rescanState.currentRetryGroupId != 0)
+  {
+    unsigned long elapsed = nowMillis - rescanState.groupWindowStartMillis;
+    if (elapsed < groupConfig.responseWindowMs)
+    {
+      return;
+    }
+  }
+
+  size_t retrySent = 0;
+
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (!Device.pendingResponse[i])
+    {
+      continue;
+    }
+
+    uint8_t deviceGroup = ensureDeviceGroup(i);
+    if (rescanState.currentRetryGroupId != 0 && deviceGroup != rescanState.currentRetryGroupId)
+    {
+      continue;
+    }
+
+    if (nowMillis - Device.lastRequestMillis[i] < RESPONSE_RETRY_INTERVAL)
+    {
+      continue;
+    }
+
+    getlicenseForMac(Device.DeviceID[i], Device.MACList[i], Device.LocalID[i], nowMillis);
+    Device.lastRequestMillis[i] = nowMillis;
+    retrySent++;
+    hadAnyRequest = true;
+
+    if (retrySent >= MAX_DIRECT_RETRY_PER_LOOP)
+    {
+      break;
+    }
+  }
+
+  if (retrySent > 0 && rescanState.currentRetryGroupId != 0)
+  {
+    rescanState.groupWindowStartMillis = nowMillis;
+  }
+
+  if (!hasPendingResponses())
+  {
+    resetRescanState();
+    if (!hadAnyRequest)
+    {
+      return;
+    }
+
+    if (retrySent > 0)
+    {
+      Serial.println("✅ Tất cả node đã phản hồi sau lần gửi lại.");
+    }
+    else
+    {
+      Serial.println("✅ Tất cả node đã phản hồi.");
+    }
+  }
+  else
+  {
+    advanceGroupWindowState(nowMillis);
   }
 }
 

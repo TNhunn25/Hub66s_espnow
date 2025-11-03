@@ -112,5 +112,7 @@ extern uint32_t lastSendTime;
 extern String device_id;
 extern uint32_t group_id; // group indentifier
 extern uint32_t nod; // number of device
+extern uint8_t desired_group_count;
+extern uint8_t desired_group_size;
 
 #endif // CONFIG_H

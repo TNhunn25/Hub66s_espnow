@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "config.h"
-#include "espnow_group.h"
+// #include "espnow_group.h"
 // #include "protocol_handler.h" // cho createMessage()
 
 // xử lý các lệnh nhập tay từ Serial
@@ -145,26 +145,12 @@ void serial_pc()
             long time = doc["time"];
             const char *auth = doc["auth"];
 
-            if(doc.containsKey("Group"))
-            {
-              updateConfiguredGroupAssignmentsFromJson(doc["Group"]); //Trường hợp hub nhận toàn bộ cấu hình nhóm ở cấp cao nhất.
-            }
-
             // Lấy object data bên trong
             JsonObject data = doc["data"];
             uint32_t lid = data["lid"];
             uint32_t created = data["created"];
             uint8_t expired = data["expired"];
             uint32_t duration = data["duration"];
-
-            if(data.containsKey("Group"))
-            {
-              updateConfiguredGroupAssignmentsFromJson(data["Group"]); //Node yêu cầu đầy cấu hình nhóm thông qua trường Group.
-            }
-            else if (data.containsKey("group_cfg"))
-            {
-              updateConfiguredGroupAssignmentsFromJson(data["group_cfg"]); //Hoặc theo chuẩn mới với khóa group_cfg.
-            }
 
             // In dữ liệu nhận được
             Serial.print("ID: ");

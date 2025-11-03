@@ -11,7 +11,33 @@
 #include "espnow_group.h"
 #include "protocol_handler.h"
 
-void logDeviceStatus(const char *prefix, const uint8_t *mac_addr, int index, bool missingGroupId)
+/**
+ * @brief Áp dụng group id node báo về, hoặc sử dụng cấu hình Hub nếu thiếu/mâu thuẫn.
+ *
+ * @param index            Vị trí thiết bị trong danh sách Device.
+ * @param expectedGroupId  Nhóm Hub đã cấu hình cho thiết bị.
+ * @param reportedGroupId  Nhóm mà node phản hồi về (0 nếu không gửi).
+ * @return true            Nếu Hub phải sử dụng lại cấu hình cục bộ thay vì giá trị node cung cấp.
+ */
+inline bool applyReportedGroupToDevice(int index, uint8_t expectedGroupId, uint8_t reportedGroupId)
+{
+  if (reportedGroupId == 0)
+  {
+    Device.groupId[index] = expectedGroupId;
+    return true;
+  }
+
+  if (reportedGroupId != expectedGroupId)
+  {
+    Device.groupId[index] = expectedGroupId;
+    return true;
+  }
+
+  Device.groupId[index] = reportedGroupId;
+  return false;
+}
+
+void logDeviceStatus(const char *prefix, const uint8_t *mac_addr, int index, bool usedHubGroupFallback, uint8_t reportedGroupId)
 {
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -25,9 +51,18 @@ void logDeviceStatus(const char *prefix, const uint8_t *mac_addr, int index, boo
   Serial.print(" | Responses: ");
   Serial.println(Device.responseCount[index]);
 
-  if (missingGroupId)
+  if (usedHubGroupFallback)
   {
-    Serial.println("⚠️ Node không gửi group_id, áp dụng nhóm theo cấu hình hiện tại.");
+    if (reportedGroupId == 0)
+    {
+      Serial.println("⚠️ Node không gửi group_id, áp dụng nhóm theo cấu hình hiện tại.");
+    }
+    else
+    {
+      Serial.printf("⚠️ Node báo group_id=%u, áp dụng nhóm %u theo cấu hình hiện tại.\n",
+                    reportedGroupId,
+                    Device.groupId[index]);
+    }
   }
 }
 
@@ -44,16 +79,19 @@ int findMacIndex(const uint8_t *mac_addr)
   return -1;
 }
 
-//Thêm mới hoặc cập nhật node dựa trên phản hồi nhận được từ 
+// Thêm mới hoặc cập nhật node dựa trên phản hồi nhận được từ
 void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_, uint8_t groupId)
 {
   // Kiểm tra xem node đã có trong danh sách hay chưa
-  int existingIndex = findMacIndex(mac_addr);
+  int existingIndex = findDeviceIndexByMac(mac_addr);
 
-  refreshGroupConfiguration(); //Sau khi đọc cấu hình mới nhất, mọi phép gán nhóm sẽ được cập nhật trước khi xử lý phản hồi.
+  refreshGroupConfiguration(); // Sau khi đọc cấu hình mới nhất, mọi phép gán nhóm sẽ được cập nhật trước khi xử lý phản hồi.
 
   if (existingIndex != -1)
   {
+    uint8_t expectedGroupId = resolveGroupIdForIndex(existingIndex);
+    bool fallbackToConfiguredGroup = applyReportedGroupToDevice(existingIndex, expectedGroupId, groupId);
+
     Device.DeviceID[existingIndex] = id;
     Device.LocalID[existingIndex] = lid;
     Device.timeLIC[existingIndex] = time_;
@@ -61,18 +99,24 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
     Device.responseCount[existingIndex]++;
     Device.lastResponseMillis[existingIndex] = millis();
     Device.pendingResponse[existingIndex] = false;
-
-    uint8_t requestedGroup = groupId;
-    if(requestedGroup == 0)
-    {
-      requestedGroup = getConfiguredGroupForMac(Device.MACList[existingIndex]);
-    }
-
-    Device.groupId[existingIndex] = resolveGroupIdForIndex(existingIndex, requestedGroup);
     Device.hasRespondedAtLeastOnce[existingIndex] = true;
     Device.lastScanSessionId[existingIndex] = currentScanSessionId;
 
-    logDeviceStatus("🔄 Cập nhật thiết bị", mac_addr, existingIndex, groupId == 0);
+    // // Cho phép UI làm mới danh sách ngay khi nhận được phản hồi mới.
+    // enable_print_ui = true;
+
+    logDeviceStatus("🔄 Cập nhật thiết bị", mac_addr, existingIndex, fallbackToConfiguredGroup, groupId);
+    return;
+  }
+  uint32_t configuredGroupLimit = static_cast<uint32_t>(resolveRequestedGroupCount()) * resolveRequestedGroupSize();
+  uint32_t computedGroupLimit = static_cast<uint32_t>(groupConfig.groupCount) * groupConfig.groupSize;
+
+  uint32_t maxAllowedDevices = configuredGroupLimit != 0 ? configuredGroupLimit : computedGroupLimit;
+
+  if (maxAllowedDevices != 0 && Device.deviceCount >= maxAllowedDevices)
+  {
+    Serial.printf("Không thể thêm thiết bị mới: đã đạt giới hạn %lu thiết bị theo cấu hình nhóm.\n",
+                  static_cast<unsigned long>(maxAllowedDevices));
     return;
   }
 
@@ -89,21 +133,20 @@ void addMacToList(int id, int lid, const uint8_t *mac_addr, unsigned long time_,
   Device.DeviceID[index] = id;
   Device.LocalID[index] = lid;
   Device.timeLIC[index] = time_;
-  Device.responseCount[index] = 1;              // Lần phản hồi đầu tiên
-  Device.lastResponseMillis[index] = millis();  // Ghi nhận thời điểm phản hồi
-  Device.lastRequestMillis[index] = 0;          // Chưa có lần yêu cầu đơn lẻ nào
-  Device.pendingResponse[index] = false;        // Đã phản hồi cho lượt broadcast hiện tại
-  uint8_t requestedGroup = groupId;
-  if (requestedGroup == 0)
-  {
-    requestedGroup = getConfiguredGroupForMac(Device.MACList[index]);
-  }
-  Device.groupId[index] = resolveGroupIdForIndex(index,requestedGroup);
+  Device.responseCount[index] = 1;             // Lần phản hồi đầu tiên
+  Device.lastResponseMillis[index] = millis(); // Ghi nhận thời điểm phản hồi
+  Device.lastRequestMillis[index] = 0;         // Chưa có lần yêu cầu đơn lẻ nào
+  Device.pendingResponse[index] = false;       // Đã phản hồi cho lượt broadcast hiện tại
+  uint8_t expectedGroupId = resolveGroupIdForIndex(index);
+  bool fallbackToConfiguredGroup = applyReportedGroupToDevice(index, expectedGroupId, groupId);
   Device.hasRespondedAtLeastOnce[index] = true;
   Device.lastScanSessionId[index] = currentScanSessionId;
   Device.deviceCount++;
 
-  logDeviceStatus("Thêm thiết bị", mac_addr, index, groupId == 0);
+  // Node mới được thêm sau khi đã hiển thị danh sách trước đó vẫn cần được cập nhật UI.
+  enable_print_ui = true;
+
+  logDeviceStatus("Thêm thiết bị", mac_addr, index, fallbackToConfiguredGroup, groupId);
 }
 
 void printDeviceList()
@@ -112,8 +155,8 @@ void printDeviceList()
   for (int i = 0; i < Device.deviceCount; i++)
   {
     char prefix[24];
-    snprintf(prefix, sizeof(prefix),"📋 Thiết bị %d", i + 1);
-    logDeviceStatus(prefix, Device.MACList[i], i, Device.groupId);
+    snprintf(prefix, sizeof(prefix), "📋 Thiết bị %d", i + 1);
+    logDeviceStatus(prefix, Device.MACList[i], i, false, 0);
   }
   Serial.println("------------------");
 }
@@ -141,6 +184,5 @@ void onReceive(const esp_now_recv_info *recv_info, const uint8_t *incomingData, 
   }
   processReceivedData(doc, mac_addr);
 }
-
 
 #endif // ESPNOW_HANDLER_H
