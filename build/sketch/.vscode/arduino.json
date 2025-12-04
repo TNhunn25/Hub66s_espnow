@@ -1,0 +1,22 @@
+#line 1 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\.vscode\\arduino.json"
+{
+  "configuration": "UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default",
+  "board": "esp32:esp32:esp32s3",
+  "programmer": "esptool",
+  "port": "COM3",
+  "sketch": "09_lvgl_Porting.ino",
+  "monitorPortSettings": {
+    "settings": {
+      "port": "COM37",
+      "baudRate": 115200,
+      "lineEnding": "\r\n",
+      "dataBits": 8,
+      "parity": "none",
+      "stopBits": "one"
+    },
+    "profile_name": ""
+  },
+  "configurationRequired": true,
+  "optimize_for_debug": false,
+  "useProgrammer": false
+}

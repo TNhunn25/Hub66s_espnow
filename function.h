@@ -1,0 +1,60 @@
+#ifndef FUNCTION_H
+#define FUNCTION_H
+#include <Arduino.h>
+#include "stdio.h"
+#include "ui.h"
+
+typedef struct {
+    long lid;
+    long created;
+    long expired;
+    long duration;
+} Licence;
+extern Licence datalic;
+
+#define MAX_DEVICES 100
+typedef struct {
+    uint8_t MACList[MAX_DEVICES][6]; // Lưu địa chỉ MAC (6 bytes)
+    int DeviceID[MAX_DEVICES];
+    int LocalID[MAX_DEVICES];
+    uint32_t timeLIC[MAX_DEVICES];
+    int DeviceLimit[MAX_DEVICES];
+    uint32_t responseCount[MAX_DEVICES]; //Thống kê số lần node phản hồi thành công
+    unsigned long lastRequestMillis[MAX_DEVICES];      // Lưu thời điểm gần nhất Hub gửi yêu cầu tới node
+    bool pendingResponse[MAX_DEVICES]; // Đánh dấu thiết bị còn đang chờ phản hồi trong chu kỳ hiện tại
+    unsigned long lastResponseMillis[MAX_DEVICES]; // Lưu thời điểm gần nhất thiết bị phản hồi để phục vụ logic nhóm
+    uint8_t groupId[MAX_DEVICES]; //Nhóm phản hồi được cấu hình cho thiết bị 
+    bool hasRespondedAtLeastOnce[MAX_DEVICES]; // Đánh dấu thiết bị đã từng phản hồi thành công
+    uint32_t lastScanSessionId[MAX_DEVICES];   // Lần quét gần nhất mà thiết bị đã phản hồi
+    uint32_t groupLastScanSessionId[MAX_DEVICES]; //Phiên quét đầy đủ gần nhất mà nhóm đã phản hồi.
+    uint32_t groupTrackingSessionId; //Phiên scan (Scan) hiện tại dùng để đáu dấu nhóm
+    int deviceCount;
+} device_info;
+extern device_info Device;
+
+// Thêm mới hoặc cập nhật thông tin thiết bị trong danh sách
+void addNodeToList(int id_src, int lid, uint32_t nodeId, uint32_t timestamp);
+void printDeviceList();
+// void handleScanResponse(uint32_t nodeId, int device_id, int local_id, uint32_t time_);
+// Xử lý phản hồi scan, thêm hoặc cập nhật thiết bị
+void handleScanResponse(uint32_t nodeId, int device_id, int local_id);
+
+extern int Device_ID;
+extern uint32_t nod;
+extern bool enable_print_ui;
+extern uint8_t button;
+extern lv_timer_t * timer;
+extern char messger[128];
+extern bool enable_print_ui_set;
+extern int next_page;
+extern uint32_t currentScanSessionId;
+
+// Khai báo các hàm
+void update_RTC(char* Hour, char* Minute, char* Second);
+void update_config(char* localID, char* deviceID, char* nod);
+void get_lic_ui();
+void get_id_lid_ui();
+void Notification(char* messager);
+void timer_cb(lv_timer_t * timer);
+
+#endif // FUNCTION_H
