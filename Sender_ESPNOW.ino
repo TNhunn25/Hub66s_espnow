@@ -222,7 +222,7 @@ static void startLicenseScan(bool includeKnownDevices)
   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, nowMillis);
 }
 
-// Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin trực tiếp tới node.
+// Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin tt tới node.
 static void ensurePeerRegistered(const uint8_t *mac_addr)
 {
   esp_now_peer_info_t peerInfo = {};
