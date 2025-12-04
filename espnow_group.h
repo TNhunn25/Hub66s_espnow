@@ -9,7 +9,7 @@
 #include "config.h"
 
 /**
- * @brief Cấu hình nhóm dùng để điều phối phản hồi giữa các node ESPNOW.
+ * @brief Cấu hình nhóm dùng để điều phối phản hồi giữa các node ESPNOW.  
  */
 typedef struct
 {

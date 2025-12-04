@@ -197,7 +197,7 @@ void serial_pc()
             case 6: // LIC_INFO
               Serial.println("LIC_INFO (Cập nhật thông tin LIC66S)");
               break;
-            case 7: // LIC_CONFIG_DEVICE
+            case 7: // LIC_CONFIG_DEVICE-
               Serial.println("LIC_CONFIG_DEVICE (Cấu hình thiết bị với license)");
               break;
             default:

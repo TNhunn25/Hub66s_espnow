@@ -12,7 +12,7 @@
 #include "protocol_handler.h"
 
 /**
- * @brief Áp dụng group id node báo về, hoặc sử dụng cấu hình Hub nếu thiếu/mâu thuẫn.
+ * @brief Áp dụng group id node báo về, hoặc sử dụng cấu hình Hub nếu thiếu.
  *
  * @param index            Vị trí thiết bị trong danh sách Device.
  * @param expectedGroupId  Nhóm Hub đã cấu hình cho thiết bị.
