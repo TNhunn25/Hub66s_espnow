@@ -6,7 +6,7 @@
 #include <time.h>
 #include <MD5Builder.h>
 #include <WiFi.h>
-// #include <Preferences.h> // Thư viện để lưu trữ dữ liệu vào bộ nhớ flash
+// #include <Preferences.h> // Thư viện để lưu trữ dữ liệu vào bộ nhớ
 #include <esp_display_panel.hpp>
 #include "ESP32_NOW.h"
 #include "led_status.h"
