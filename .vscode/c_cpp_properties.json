@@ -25,7 +25,7 @@
         "-DARDUINO_VARIANT=\"esp32s3\"",
         "-DARDUINO_PARTITION_default_8MB",
         "-DARDUINO_HOST_OS=\"windows\"",
-        "-DARDUINO_FQBN=\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default\"",
+        "-DARDUINO_FQBN=\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=all,JTAGAdapter=default,ZigbeeMode=default\"",
         "-DESP32=ESP32",
         "-DCORE_DEBUG_LEVEL=0",
         "-DARDUINO_RUNNING_CORE=1",
@@ -53,9 +53,9 @@
         "-IC:\\Users\\Tuyet Nhung-RD\\Documents\\Arduino\\libraries\\lvgl\\src",
         "@D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build/build_opt.h",
         "@D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build/file_opts",
-        "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build\\sketch\\Sender_ESPNOW.ino.cpp",
+        "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build\\sketch\\lvgl_v8_port.cpp",
         "-o",
-        "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build\\sketch\\Sender_ESPNOW.ino.cpp.o"
+        "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\build\\sketch\\lvgl_v8_port.cpp.o"
       ],
       "defines": [
         "F_CPU=240000000L",
@@ -66,7 +66,7 @@
         "ARDUINO_VARIANT=\"esp32s3\"",
         "ARDUINO_PARTITION_default_8MB",
         "ARDUINO_HOST_OS=\"windows\"",
-        "ARDUINO_FQBN=\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default\"",
+        "ARDUINO_FQBN=\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=all,JTAGAdapter=default,ZigbeeMode=default\"",
         "ESP32=ESP32",
         "CORE_DEBUG_LEVEL=0",
         "ARDUINO_RUNNING_CORE=1",
@@ -79,7 +79,7 @@
         "ARDUINO_BOARD=\\\"ESP32S3_DEV\\\"\"",
         "ARDUINO_VARIANT=\\\"esp32s3\\\"\"",
         "ARDUINO_HOST_OS=\\\"windows\\\"\"",
-        "ARDUINO_FQBN=\\\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default\\\"\"",
+        "ARDUINO_FQBN=\\\"esp32:esp32:esp32s3:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=all,JTAGAdapter=default,ZigbeeMode=default\\\"\"",
         "ARDUINO_CORE_BUILD",
         "USBCON"
       ],

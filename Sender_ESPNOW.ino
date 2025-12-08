@@ -32,9 +32,9 @@ char messger[128];
 uint8_t button = 0;
 
 group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS}; // Cấu hình nhóm mặc định xử lý ESPNOW
-static uint8_t currentRetryGroupId = 0;          // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
-static unsigned long groupWindowStartMillis = 0; // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
-uint32_t currentScanSessionId = 0;               // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
+static uint8_t currentRetryGroupId = 0;                                   // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
+static unsigned long groupWindowStartMillis = 0;                          // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
+uint32_t currentScanSessionId = 0;                                        // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
 
 // Biến lưu cấu hình
 int config_lid = 123;
@@ -392,11 +392,17 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   }
 
   bool includeAssignments = true;
-  String output;
 
   DynamicJsonDocument dataDoc(256);
   dataDoc["lid"] = lid;
   appendGroupConfiguration(dataDoc, 0, includeAssignments);
+  String output = createMessage(id_src,
+                                id_des,
+                                mac_src,
+                                mac_des,
+                                opcode,
+                                dataDoc,
+                                nowMillis);
 
   if (output.length() > sizeof(message.payload))
   {

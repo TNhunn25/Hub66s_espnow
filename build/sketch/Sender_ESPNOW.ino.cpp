@@ -33,12 +33,9 @@ char messger[128];
 uint8_t button = 0;
 
 group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS}; // Cấu hình nhóm mặc định xử lý ESPNOW
-// size_t configuredAssignmentCount = 0;                                     // Tổng số bản ghi gán nhóm do Hub lưu trữ sau khi đọc lệnh cấu hình
-// uint8_t configuredAssignmentMac[MAX_DEVICES][6] = {{0}};                  // Ds MAC được gán nhóm theo cấu hình
-// uint8_t configuredAssignmentGroupId[MAX_DEVICES] = {0};                   // Nhóm tương ứng cho từng LocalId trong mảng
-static uint8_t currentRetryGroupId = 0;          // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
-static unsigned long groupWindowStartMillis = 0; // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
-uint32_t currentScanSessionId = 0;               // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
+static uint8_t currentRetryGroupId = 0;                                   // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
+static unsigned long groupWindowStartMillis = 0;                          // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
+uint32_t currentScanSessionId = 0;                                        // Bộ đếm phiên quét giúp xác định lần scan gần nhất của từng thiết bị
 
 // Biến lưu cấu hình
 int config_lid = 123;
@@ -77,27 +74,27 @@ static const size_t MAX_DIRECT_RETRY_PER_LOOP = 3;
 bool awaitingBroadcastResponses = false;
 
 // Chuyển địa chỉ MAC sang dạng chuỗi "AA:BB:CC:DD:EE:FF" để tiện ghi log.
-#line 79 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 76 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static String macToString(const uint8_t *mac);
-#line 88 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 85 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static void advanceGroupWindowState(unsigned long nowMillis);
-#line 116 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 113 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static bool hasPendingResponses();
-#line 188 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 185 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static void startLicenseScan(bool includeKnownDevices);
-#line 229 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 226 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static void ensurePeerRegistered(const uint8_t *mac_addr);
-#line 246 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 243 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsigned long nowMillis);
-#line 292 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 289 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static void handlePendingResponses();
-#line 385 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 382 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigned long nowMillis);
-#line 420 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 423 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 void setup();
-#line 488 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 491 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 void loop();
-#line 79 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
+#line 76 "D:\\Project_Hub66s_ESPNOW\\Hub66s_Dev_ESPNOW - group_30\\Sender_ESPNOW\\Sender_ESPNOW.ino"
 static String macToString(const uint8_t *mac)
 {
   char macStr[18];
@@ -247,7 +244,7 @@ static void startLicenseScan(bool includeKnownDevices)
   getlicense(Device_ID, WiFi.macAddress(), datalic.lid, nowMillis);
 }
 
-// Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin trực tiếp tới node.
+// Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin tt tới node.
 static void ensurePeerRegistered(const uint8_t *mac_addr)
 {
   esp_now_peer_info_t peerInfo = {};
@@ -417,11 +414,17 @@ void sendGetLicenseBroadcast(int id_des, const String &mac_src, int lid, unsigne
   }
 
   bool includeAssignments = true;
-  String output;
 
   DynamicJsonDocument dataDoc(256);
   dataDoc["lid"] = lid;
   appendGroupConfiguration(dataDoc, 0, includeAssignments);
+  String output = createMessage(id_src,
+                                id_des,
+                                mac_src,
+                                mac_des,
+                                opcode,
+                                dataDoc,
+                                nowMillis);
 
   if (output.length() > sizeof(message.payload))
   {
