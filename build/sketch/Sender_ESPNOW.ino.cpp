@@ -574,7 +574,19 @@ void loop()
     // lv_obj_clean(ui_Groupdevice); comment 2 dòng này 23/09
     // lv_obj_invalidate(ui_Groupdevice);
 
-    if ((next_page * maxLinesPerPage) >= Device.deviceCount)
+    int filteredCount = 0;
+    for (int i = 0; i < Device.deviceCount; i++)
+    {
+      if (i < 0 || i >= MAX_DEVICES)
+        continue;
+      if (datalic.lid != 0 && Device.LocalID[i] != datalic.lid)
+        continue;
+      if (Device_ID != 0 && Device.DeviceID[i] != Device_ID)
+        continue;
+      filteredCount++;
+    }
+
+    if ((next_page * maxLinesPerPage) >= filteredCount)
     {
       next_page = 0; // Quay về trang đầu
     }
@@ -583,8 +595,8 @@ void loop()
 
     int startIdx = next_page * maxLinesPerPage;
     int endIdx = startIdx + maxLinesPerPage;
-    if (endIdx > Device.deviceCount)
-      endIdx = Device.deviceCount;
+    if (endIdx > filteredCount)
+      endIdx = filteredCount;
     if (startIdx >= endIdx || startIdx < 0 || endIdx > MAX_DEVICES)
     {
       enable_print_ui = false;
@@ -604,17 +616,27 @@ void loop()
     if (ui_Label7)
     {
       char buf[64];
-      snprintf(buf, sizeof(buf), "LIST DEVICE: %2d - Page %2d", Device.deviceCount, next_page + 1);
+      snprintf(buf, sizeof(buf), "LIST DEVICE: %2d - Page %2d",  Device.deviceCount, next_page + 1);
       lv_label_set_text(ui_Label7, buf);
       Serial.printf("BUF= %s\n", buf);
     }
 
-    for (int i = startIdx; i < endIdx; i++)
+    int visibleIndex = 0;
+    for (int i = 0; i < Device.deviceCount && visibleIndex < endIdx; i++)
     {
       if (i < 0 || i >= MAX_DEVICES)
         continue;
+      if (datalic.lid != 0 && Device.LocalID[i] != datalic.lid)
+        continue;
       if (Device_ID != 0 && Device.DeviceID[i] != Device_ID)
         continue;
+
+      if (visibleIndex < startIdx)
+      {
+        visibleIndex++;
+        continue;
+      }
+      visibleIndex++;
       char macStr[18], idStr[18], lidStr[18], timeStr[18], nodStr[8];
 
       snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -628,6 +650,12 @@ void loop()
       int count = 0;
       for (int j = 0; j < Device.deviceCount; j++)
       {
+        if (j < 0 || j >= MAX_DEVICES)
+          continue;
+        if (datalic.lid != 0 && Device.LocalID[j] != datalic.lid)
+          continue;
+        if (Device_ID != 0 && Device.DeviceID[j] != Device_ID)
+          continue;
         if (Device.LocalID[j] == Device.LocalID[i])
         {
           count++;

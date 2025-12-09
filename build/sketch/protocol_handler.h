@@ -94,6 +94,13 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
   }
   serializeJson(message, Serial);
 
+  // Chỉ xử lý gói tin gửi tới đúng Hub hiện tại để tránh trộn dữ liệu truy vấn
+  if (id_des != config_id)
+  {
+    Serial.printf("⚠️ Bỏ qua gói tin dành cho id_des=%d (Hub hiện tại=%d)\n", id_des, config_id);
+    return;
+  }
+
   switch (opcode)
   {
   case LIC_SET_LICENSE | 0x80:
@@ -157,6 +164,7 @@ void processReceivedData(StaticJsonDocument<512> message, const uint8_t *mac_add
     }
 
     Serial.print("Device ID: ");
+    Serial.println(new_id);
     Serial.print("LID: ");
     Serial.println(new_lid);
     Serial.print("NOD: ");
