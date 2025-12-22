@@ -263,40 +263,40 @@ inline uint8_t findLowestPendingGroupId()
  * phản hồi. Tham số includeAssignments được giữ lại nhằm tương thích với API
  * cũ nhưng hiện không còn thêm danh sách gán chi tiết.
  */
-inline void appendGroupConfiguration(DynamicJsonDocument &dataDoc, uint8_t targetGroupId, bool includeAssignments)
-{
-  JsonObject groupCfg = dataDoc.createNestedObject("group_cfg");
-  if (targetGroupId != 0)
-  {
-    groupCfg["target_group_id"] = targetGroupId;
-  }
+// inline void appendGroupConfiguration(DynamicJsonDocument &dataDoc, uint8_t targetGroupId, bool includeAssignments)
+// {
+//   JsonObject groupCfg = dataDoc.createNestedObject("group_cfg");
+//   if (targetGroupId != 0)
+//   {
+//     groupCfg["target_group_id"] = targetGroupId;
+//   }
 
-  groupCfg["count"] = groupConfig.groupCount;
-  groupCfg["size"] = groupConfig.groupSize;
+//   groupCfg["count"] = groupConfig.groupCount;
+//   groupCfg["size"] = groupConfig.groupSize;
 
-  if (!includeAssignments)
-  {
-    return;
-  }
+//   if (!includeAssignments)
+//   {
+//     return;
+//   }
 
-  JsonArray assignments = groupCfg.createNestedArray("assignments");
-  for (int i = 0; i < Device.deviceCount; i++)
-  {
-    uint8_t deviceGroup = ensureDeviceGroup(i);
-    if (deviceGroup == 0)
-    {
-      continue;
-    }
+//   JsonArray assignments = groupCfg.createNestedArray("assignments");
+//   for (int i = 0; i < Device.deviceCount; i++)
+//   {
+//     uint8_t deviceGroup = ensureDeviceGroup(i);
+//     if (deviceGroup == 0)
+//     {
+//       continue;
+//     }
 
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             Device.MACList[i][0], Device.MACList[i][1], Device.MACList[i][2],
-             Device.MACList[i][3], Device.MACList[i][4], Device.MACList[i][5]);
+//     char macStr[18];
+//     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+//              Device.MACList[i][0], Device.MACList[i][1], Device.MACList[i][2],
+//              Device.MACList[i][3], Device.MACList[i][4], Device.MACList[i][5]);
 
-    JsonObject entry = assignments.createNestedObject();
-    entry["mac"] = macStr;
-    entry["group_id"] = deviceGroup;
-  }
-}
+//     JsonObject entry = assignments.createNestedObject();
+//     entry["mac"] = macStr;
+//     entry["group_id"] = deviceGroup;
+//   }
+// }
 
 #endif // ESPNOW_GROUP_H

@@ -4,6 +4,7 @@
 // Project name: UI_LIC66S
 
 #include "ui.h"
+#include "function.h"
 
 lv_obj_t * ui_SCRconfigdevice = NULL;
 lv_obj_t * ui_Image5 = NULL;
@@ -387,6 +388,16 @@ void ui_SCRconfigdevice_screen_init(void)
     lv_obj_set_style_bg_color(ui_TextArea10, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_TextArea10, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_TextArea10, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    //-----------------------------------------------------------
+    char deviceIdBuf[12];
+    char localIdBuf[12];
+    char nodBuf[12];
+    snprintf(deviceIdBuf, sizeof(deviceIdBuf), "%d", Device_ID);
+    snprintf(localIdBuf, sizeof(localIdBuf), "%ld", datalic.lid);
+    snprintf(nodBuf, sizeof(nodBuf), "%lu", nod);
+    update_config(localIdBuf, deviceIdBuf, nodBuf);
+    //////////-mới thêm 09/12
 
     ui_Keyboard4 = lv_keyboard_create(ui_SCRconfigdevice);
     lv_keyboard_set_mode(ui_Keyboard4, LV_KEYBOARD_MODE_NUMBER);
