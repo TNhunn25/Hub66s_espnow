@@ -152,7 +152,7 @@ void loop()
       break;
     case 2:
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
-      config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
+      config_device(Device_ID, datalic.lid, 0 , nod, millis());
       break;
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");

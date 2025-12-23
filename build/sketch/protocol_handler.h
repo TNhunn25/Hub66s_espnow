@@ -201,7 +201,8 @@ static String macToString(const uint8_t *mac)
 // Đảm bảo Hub đã đăng ký peer ESP-NOW trước khi gửi gói tin tt tới node.
 static void ensurePeerRegistered(const uint8_t *mac_addr)
 {
-  if (esp_now_is_peer_exist(mac_addr)) return;
+  if (esp_now_is_peer_exist(mac_addr))
+    return;
 
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, mac_addr, 6);
@@ -216,7 +217,6 @@ static void ensurePeerRegistered(const uint8_t *mac_addr)
                   result);
   }
 }
-
 
 static String formatMacAddress(const uint8_t mac[6])
 {
@@ -330,7 +330,6 @@ static void getlicenseForMac(int id_des, const uint8_t *mac_des, int lid, unsign
   Serial.println(output);
 }
 
-
 /////////////////////////////////////
 
 bool parseMac(const String &macStr, uint8_t mac[6])
@@ -347,45 +346,79 @@ bool parseMac(const String &macStr, uint8_t mac[6])
   return true;
 }
 
-void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned long now)
+// void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned long now)
+// {
+//   int opcode = LIC_CONFIG_DEVICE;
+//   String mac = WiFi.macAddress();
+//   int id_src = config_id;
+//   DynamicJsonDocument dataDoc(128);
+//   dataDoc["id"] = id_des;
+//   dataDoc["lid"] = lid;
+//   dataDoc["nod"] = nod;
+//   // appendGroupConfiguration(dataDoc, 0, false);
+
+//   String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
+
+//   if (output.length() > sizeof(message.payload))
+//   {
+//     Serial.println("❌ Payload quá lớn! 3");
+//     return;
+//   }
+
+// uint8_t destMac[6];
+// if (!parseMac(mac_des, destMac))
+// {
+//   Serial.println("❌ MAC đích sai format");
+//   return;
+// }
+
+// ensurePeerRegistered(destMac);
+
+// output.toCharArray(message.payload, sizeof(message.payload));
+
+// esp_err_t r = esp_now_send(destMac, (uint8_t *)&message, sizeof(message));
+// if (r != ESP_OK)
+// {
+//   Serial.printf("❌ esp_now_send failed: %d\n", r);
+//   return;
+// }
+
+//   output.toCharArray(message.payload, sizeof(message.payload));
+//   esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
+
+//   Serial.println("📤 Gửi LIC_CONFIG_DEVICE:");
+//   Serial.println(output);
+// }
+void config_device(int id_des, int lid, const uint8_t *mac_des, uint32_t nod, unsigned long now)
 {
   int opcode = LIC_CONFIG_DEVICE;
-  String mac = WiFi.macAddress();
-  int id_src = config_id;
-  DynamicJsonDocument dataDoc(128);
+  String macSrc = WiFi.macAddress();
+  String macDesStr = macToString(mac_des);
+
+  DynamicJsonDocument dataDoc(256);
   dataDoc["id"] = id_des;
   dataDoc["lid"] = lid;
   dataDoc["nod"] = nod;
-  // appendGroupConfiguration(dataDoc, 0, false);
 
-  String output = createMessage(id_src, id_des, mac, mac_des, opcode, dataDoc, now);
+  String output = createMessage(config_id, id_des, macSrc, macDesStr, opcode, dataDoc, now);
 
   if (output.length() > sizeof(message.payload))
   {
-    Serial.println("❌ Payload quá lớn! 3");
+    Serial.printf("❌ Payload quá lớn khi gửi tới %s!\n", macDesStr.c_str());
     return;
   }
 
-  uint8_t destMac[6];
-  if (!parseMac(mac_des, destMac))
-  {
-    Serial.println("❌ MAC đích sai format");
-    return;
-  }
-
-  ensurePeerRegistered(destMac);
-
+  memset(message.payload, 0, sizeof(message.payload));
   output.toCharArray(message.payload, sizeof(message.payload));
 
-  esp_err_t r = esp_now_send(destMac, (uint8_t *)&message, sizeof(message));
+  ensurePeerRegistered(mac_des);
+
+  esp_err_t r = esp_now_send(mac_des, (uint8_t *)&message, sizeof(message));
   if (r != ESP_OK)
   {
-    Serial.printf("❌ esp_now_send failed: %d\n", r);
+    Serial.printf("❌ esp_now_send failed (%d) tới %s\n", (int)r, macDesStr.c_str());
     return;
   }
-
-  // output.toCharArray(message.payload, sizeof(message.payload));
-  // esp_now_send(receiverMac, (uint8_t *)&message, sizeof(message));
 
   Serial.println("📤 Gửi LIC_CONFIG_DEVICE:");
   Serial.println(output);
@@ -395,7 +428,7 @@ void config_device(int id_des, int lid, String mac_des, uint32_t nod, unsigned l
 group_config_t groupConfig = {0, 0, 0, DEFAULT_GROUP_RESPONSE_WINDOW_MS}; // Cấu hình nhóm mặc định xử lý ESPNOW
 static uint8_t currentRetryGroupId = 0;                                   // Tổng số bản ghi gán nhóm Hub lưu trữ sau khi đọc lệnh cấu hình
 static unsigned long groupWindowStartMillis = 0;                          // thời điểm bắt đầu chờ phản hồi cho nhóm hiện tại, dùng để áp timeout theo group
-uint32_t currentScanSessionId = 0;             
+uint32_t currentScanSessionId = 0;
 
 // Khoảng thời gian chờ trước khi gửi lại yêu cầu trực tiếp tới từng node
 static const unsigned long RESPONSE_RETRY_INTERVAL = 3000; // 3 giây
