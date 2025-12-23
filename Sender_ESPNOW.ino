@@ -126,6 +126,23 @@ bool ledstt = 1;
 // time_t now;
 unsigned long nowMillis = millis();
 // static unsigned long lastSendTime = 0;
+
+static const uint8_t *findTargetMacForConfig(int deviceId, int localId)
+{
+  for (int i = 0; i < Device.deviceCount; i++)
+  {
+    if (Device.DeviceID[i] != deviceId)
+      continue;
+
+    if (localId != 0 && Device.LocalID[i] != localId)
+      continue;
+
+    return Device.MACList[i];
+  }
+
+  return nullptr;
+}
+
 void loop()
 {
   serial_pc();
@@ -146,7 +163,7 @@ void loop()
       break;
     case 2:
       Serial.println("Gửi lệnh LIC_CONFIG_DEVICE");
-      config_device(Device_ID, datalic.lid, WiFi.macAddress(), nod, millis());
+      config_device(Device_ID, datalic.lid, receiverMac, nod, millis());
       break;
     case 4:
       Serial.println("Gửi lệnh LIC_GET_LICENSE_RECAN");
